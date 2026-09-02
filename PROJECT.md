@@ -33,8 +33,8 @@
 
 | 里程碑 | 内容 | 状态 |
 |---|---|---|
-| **M0 脚手架** | git init;目录结构;FastAPI health;Vite+Tailwind+shadcn+i18n;SQLite 打开+pragma;迁移执行器 + `001_initial.sql` | ⏳ **下一步** |
-| **M1 核心浏览** | spaces 树 CRUD / GET tree / move(服务端防成环)/ delete;前端嵌套树 + breadcrumb | 待开始 |
+| **M0 脚手架** | git init;目录结构;FastAPI health;Vite+Tailwind+i18n;SQLite 打开+pragma;迁移执行器 + `001_initial.sql` | ✅ 完成(commit e58e992,4 测试通过) |
+| **M1 核心浏览** | spaces 树 CRUD / GET tree / move(服务端防成环)/ delete;前端嵌套树 + breadcrumb | ✅ 完成(8+4 测试通过,含新建空间 UI) |
 | **M2 登记/存储** | defs+lots+attrs 登记(update≈re-register);手动表单 + 位置选择器;拖拽嵌套基础 | 待开始 |
 | **M3 搜索** | search seam + FTS5 trigram + ⌘K 面板 + 精确/模糊/类别/存在性;**先做 CJK 短词 spike** | 待开始 |
 | **M4 打磨** | merge-defs 合并、status(借出/用尽)、删除/移动加固、分类管理、最近操作 undo | 待开始 |

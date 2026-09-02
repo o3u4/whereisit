@@ -2,18 +2,28 @@ from __future__ import annotations
 
 from contextlib import asynccontextmanager
 
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
+from fastapi.responses import JSONResponse
 
+from app.core.errors import ApiError
 from app.db import migrations
+from app.domains.spaces.router import router as spaces_router
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    applied = migrations.apply()
+    migrations.apply()
     yield
 
 
 app = FastAPI(title="whereisit", version="0.1.0", lifespan=lifespan)
+
+app.include_router(spaces_router)
+
+
+@app.exception_handler(ApiError)
+async def api_error_handler(request: Request, exc: ApiError) -> JSONResponse:
+    return JSONResponse(status_code=exc.status_code, content={"error": exc.message})
 
 
 @app.get("/api/health")
