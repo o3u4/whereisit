@@ -1,0 +1,22 @@
+# python
+__pycache__/
+*.py[cod]
+.venv/
+backend/data/
+*.db
+*.db-wal
+*.db-shm
+
+# node
+node_modules/
+frontend/dist/
+frontend/.vite/
+
+# env / misc
+.env
+.env.local
+.DS_Store
+*.log
+
+# local claude-code permission allowlists
+.claude/settings.local.json

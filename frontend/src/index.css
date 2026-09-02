@@ -1,0 +1,41 @@
+@import "tailwindcss";
+
+/* ------------------------------------------------------------------ */
+/* whereisit design tokens. Restrained "quiet archive" direction: a    */
+/* warm paper canvas, ink text, one muted accent. Full Apple-minimal   */
+/* polish (typography scale, dark theme, motion) lands in M5.          */
+/* ------------------------------------------------------------------ */
+@theme {
+  --color-canvas: #fafaf7;
+  --color-paper: #ffffff;
+  --color-ink: #1c1c18;
+  --color-muted: #6e6e64;
+  --color-faint: #9c9c90;
+  --color-line: #e8e6dd;
+  --color-accent: #2e6e68;
+  --color-accent-ink: #f3faf9;
+
+  --font-sans:
+    "PingFang SC", "Noto Sans SC", "HarmonyOS Sans SC", "Microsoft YaHei UI",
+    system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-mono:
+    "JetBrains Mono", "Geist Mono", ui-monospace, "Cascadia Code",
+    Consolas, monospace;
+}
+
+@layer base {
+  html {
+    font-family: var(--font-sans);
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
+  }
+  body {
+    margin: 0;
+    background: var(--color-canvas);
+    color: var(--color-ink);
+  }
+  ::selection {
+    background: var(--color-accent);
+    color: var(--color-accent-ink);
+  }
+}
