@@ -30,6 +30,10 @@ const zh = {
   },
   home: {
     health: '后端健康检查',
+    scenesTitle: '全部场景',
+    scenesHint: '每个场景都是「路径」的一层。点卡片进入,或直达里面的子空间。',
+    newScene: '新增场景',
+    enterSpace: '进入空间',
   },
   type: {
     room: '房间',

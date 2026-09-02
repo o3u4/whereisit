@@ -6,7 +6,7 @@ import { useQueryClient } from '@tanstack/react-query'
 
 const TYPE_TAGS = ['generic', 'room', 'wardrobe', 'desk', 'drawer', 'shelf', 'box'] as const
 
-export default function AddSpace({ parentId }: { parentId: number | null }) {
+export default function AddSpace({ parentId, accent = false }: { parentId: number | null; accent?: boolean }) {
   const { t } = useTranslation()
   const queryClient = useQueryClient()
   const select = useUi((s) => s.select)
@@ -26,7 +26,8 @@ export default function AddSpace({ parentId }: { parentId: number | null }) {
       setName('')
       setOpen(false)
       await queryClient.invalidateQueries({ queryKey: ['spaces'] })
-      select(created.id)
+      // 顶级场景(看板 CTA)建完留在看板看新卡浮现;子空间建完进到该空间继续铺
+      if (parentId != null) select(created.id)
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e))
     } finally {
@@ -39,12 +40,16 @@ export default function AddSpace({ parentId }: { parentId: number | null }) {
       <button
         type="button"
         onClick={() => setOpen(true)}
-        className="glass-chip pressable inline-flex shrink-0 items-center gap-1 rounded-full px-3 py-1 text-[12px] text-muted hover:text-accent"
+        className={
+          accent
+            ? 'pressable inline-flex shrink-0 items-center gap-1.5 rounded-full border border-white/40 bg-accent px-3.5 py-1.5 text-[12px] font-medium text-accent-ink shadow-[0_6px_16px_-6px_rgb(46_110_104/0.6)] hover:bg-accent/90'
+            : 'glass-chip pressable inline-flex shrink-0 items-center gap-1 rounded-full px-3 py-1 text-[12px] text-muted hover:text-accent'
+        }
       >
         <svg viewBox="0 0 16 16" className="h-3.5 w-3.5" fill="none" stroke="currentColor" strokeWidth="1.6">
           <path d="M8 3v10M3 8h10" />
         </svg>
-        {t('browse.newSpace')}
+        {accent ? t('home.newScene') : t('browse.newSpace')}
       </button>
     )
   }

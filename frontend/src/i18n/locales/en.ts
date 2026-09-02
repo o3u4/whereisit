@@ -30,6 +30,10 @@ const en = {
   },
   home: {
     health: 'Backend health check',
+    scenesTitle: 'All scenes',
+    scenesHint: 'Every scene is one layer of a path. Open a card, or jump to a sub-space inside.',
+    newScene: 'New scene',
+    enterSpace: 'Open space',
   },
   type: {
     room: 'Room',

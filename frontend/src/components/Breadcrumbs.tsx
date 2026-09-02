@@ -5,6 +5,7 @@ import { useUi } from '../stores/ui'
 export default function Breadcrumbs({ path }: { path: SpaceNode[] }) {
   const { t } = useTranslation()
   const select = useUi((s) => s.select)
+  const goBoard = useUi((s) => s.goBoard)
 
   if (path.length === 0) return null
 
@@ -13,9 +14,14 @@ export default function Breadcrumbs({ path }: { path: SpaceNode[] }) {
       aria-label="path"
       className="pretty-scroll flex min-w-0 items-center gap-1.5 overflow-x-auto whitespace-nowrap py-0.5"
     >
-      <span className="shrink-0 font-mono text-[13px] font-semibold text-accent">
+      <button
+        type="button"
+        onClick={goBoard}
+        title={t('home.scenesTitle')}
+        className="pressable shrink-0 rounded-md px-0.5 py-0.5 font-mono text-[13px] font-semibold text-accent hover:text-ink"
+      >
         {t('browse.selectedPathPrefix')}
-      </span>
+      </button>
       {path.map((node, i) => {
         const isLast = i === path.length - 1
         return isLast ? (
