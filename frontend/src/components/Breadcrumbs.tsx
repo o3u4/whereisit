@@ -9,25 +9,31 @@ export default function Breadcrumbs({ path }: { path: SpaceNode[] }) {
   if (path.length === 0) return null
 
   return (
-    <nav aria-label="path" className="flex items-center gap-1 overflow-x-auto whitespace-nowrap font-mono text-[13px] text-muted">
-      <span className="text-faint">{t('browse.selectedPathPrefix')}</span>
+    <nav
+      aria-label="path"
+      className="pretty-scroll flex min-w-0 items-center gap-1.5 overflow-x-auto whitespace-nowrap py-0.5"
+    >
+      <span className="shrink-0 font-mono text-[13px] font-semibold text-accent">
+        {t('browse.selectedPathPrefix')}
+      </span>
       {path.map((node, i) => {
         const isLast = i === path.length - 1
-        return (
-          <span key={node.id} className="flex items-center gap-1">
-            {i > 0 && <span className="text-faint">/</span>}
-            {isLast ? (
-              <span className="font-medium text-ink">{node.name}</span>
-            ) : (
-              <button
-                type="button"
-                onClick={() => select(node.id)}
-                className="rounded px-0.5 transition-colors hover:text-accent"
-              >
-                {node.name}
-              </button>
-            )}
+        return isLast ? (
+          <span
+            key={node.id}
+            className="shrink-0 rounded-full border border-white/30 bg-accent px-2.5 py-1 font-mono text-[12px] font-medium text-accent-ink shadow-[0_1px_2px_rgb(20_40_36_/0.12)]"
+          >
+            {node.name}
           </span>
+        ) : (
+          <button
+            key={node.id}
+            type="button"
+            onClick={() => select(node.id)}
+            className="glass-chip pressable shrink-0 rounded-full px-2.5 py-1 font-mono text-[12px] text-muted hover:text-accent"
+          >
+            {node.name}
+          </button>
         )
       })}
     </nav>

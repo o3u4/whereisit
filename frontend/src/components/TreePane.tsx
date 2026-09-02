@@ -35,7 +35,7 @@ function TreeNode({ node, depth }: { node: SpaceNode; depth: number }) {
         onClick={() => select(node.id)}
         style={{ paddingLeft: depth * 16 }}
         className={`flex cursor-pointer items-center gap-1.5 rounded-lg py-1 pr-2 text-[13px] transition-colors ${
-          isSel ? 'bg-accent/10 text-ink' : 'text-muted hover:bg-paper hover:text-ink'
+          isSel ? 'bg-accent-soft font-medium text-ink' : 'text-muted hover:bg-white/55 hover:text-ink'
         }`}
       >
         <button
@@ -46,12 +46,14 @@ function TreeNode({ node, depth }: { node: SpaceNode; depth: number }) {
             e.stopPropagation()
             if (hasKids) toggle(node.id)
           }}
-          className={`flex h-4 w-4 items-center justify-center rounded ${hasKids ? 'text-faint hover:text-ink' : 'opacity-0'}`}
+          className={`flex h-4 w-4 shrink-0 items-center justify-center rounded ${
+            hasKids ? 'text-faint hover:text-ink' : 'opacity-0'
+          }`}
         >
           <Chevron open={isOpen} />
         </button>
         <span className="min-w-0 flex-1 truncate">{node.name}</span>
-        <TypeBadge tag={node.type_tag} />
+        <TypeBadge tag={node.type_tag} dotOnly />
       </div>
       {hasKids && isOpen && (
         <ul>

@@ -39,7 +39,7 @@ export default function AddSpace({ parentId }: { parentId: number | null }) {
       <button
         type="button"
         onClick={() => setOpen(true)}
-        className="flex items-center gap-1 rounded-full border border-dashed border-line px-3 py-1 text-[12px] text-muted transition-colors hover:border-accent hover:text-accent"
+        className="glass-chip pressable inline-flex shrink-0 items-center gap-1 rounded-full px-3 py-1 text-[12px] text-muted hover:text-accent"
       >
         <svg viewBox="0 0 16 16" className="h-3.5 w-3.5" fill="none" stroke="currentColor" strokeWidth="1.6">
           <path d="M8 3v10M3 8h10" />
@@ -50,7 +50,7 @@ export default function AddSpace({ parentId }: { parentId: number | null }) {
   }
 
   return (
-    <div className="flex flex-col gap-2 rounded-xl border border-line bg-paper p-3 shadow-sm">
+    <div className="glass-card material-in flex flex-col gap-2 rounded-2xl p-3">
       <label className="flex flex-col gap-1 text-[11px] text-muted">
         {t('browse.name')}
         <input
@@ -59,7 +59,7 @@ export default function AddSpace({ parentId }: { parentId: number | null }) {
           onChange={(e) => setName(e.target.value)}
           onKeyDown={(e) => e.key === 'Enter' && submit()}
           placeholder={t('browse.namePlaceholder')}
-          className="rounded-lg border border-line bg-canvas px-2.5 py-1.5 text-[13px] text-ink outline-none focus:border-accent"
+          className="rounded-lg border border-white/70 bg-white/55 px-2.5 py-1.5 text-[13px] text-ink outline-none placeholder:text-faint focus:border-accent"
         />
       </label>
       <div className="flex flex-wrap gap-1.5">
@@ -68,17 +68,17 @@ export default function AddSpace({ parentId }: { parentId: number | null }) {
             key={tagId}
             type="button"
             onClick={() => setTag(tagId)}
-            className={`rounded-full border px-2 py-0.5 text-[11px] transition-colors ${
+            className={
               tag === tagId
-                ? 'border-accent bg-accent text-accent-ink'
-                : 'border-line text-muted hover:border-accent hover:text-accent'
-            }`}
+                ? 'rounded-full border border-white/30 bg-accent px-2 py-0.5 text-[11px] text-accent-ink'
+                : 'glass-chip pressable rounded-full px-2 py-0.5 text-[11px] text-muted hover:text-accent'
+            }
           >
             {t(`type.${tagId}`)}
           </button>
         ))}
       </div>
-      {error && <p className="text-[12px] text-[#b3452f]">{error}</p>}
+      {error && <p className="text-[12px] text-danger">{error}</p>}
       <div className="flex justify-end gap-2">
         <button
           type="button"
@@ -91,7 +91,7 @@ export default function AddSpace({ parentId }: { parentId: number | null }) {
           type="button"
           disabled={busy || !name.trim()}
           onClick={submit}
-          className="rounded-full bg-ink px-3 py-1 text-[12px] text-paper transition-opacity disabled:opacity-40"
+          className="pressable rounded-full bg-ink px-3 py-1 text-[12px] text-paper disabled:opacity-40"
         >
           {t('browse.create')}
         </button>
