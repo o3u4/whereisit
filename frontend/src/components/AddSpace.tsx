@@ -55,7 +55,7 @@ export default function AddSpace({ parentId, accent = false }: { parentId: numbe
   }
 
   return (
-    <div className="glass-card material-in flex flex-col gap-2 rounded-2xl p-3">
+    <div className="glass-card material-in flex flex-col gap-2 rounded-[20px] p-3">
       <label className="flex flex-col gap-1 text-[11px] text-muted">
         {t('browse.name')}
         <input

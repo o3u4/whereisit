@@ -8,7 +8,7 @@ export default function BackToBoard() {
     <button
       type="button"
       onClick={goBoard}
-      className="pressable fixed bottom-4 right-4 z-30 flex items-center gap-2 rounded-full border border-white/50 bg-white/75 px-3.5 py-2 text-[12.5px] font-medium text-ink shadow-[0_10px_26px_-10px_rgb(20_50_44/0.4)] backdrop-blur-md hover:text-accent"
+      className="pressable fixed bottom-4 right-4 z-40 flex items-center gap-2 rounded-full border border-white/60 bg-white/70 px-3.5 py-2 text-[12.5px] font-medium text-ink shadow-[0_10px_26px_-10px_rgb(20_50_44/0.45)] backdrop-blur-xl hover:text-accent"
     >
       <svg
         viewBox="0 0 24 24"

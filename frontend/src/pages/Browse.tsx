@@ -72,9 +72,9 @@ export default function Browse() {
   return (
     <div className="flex min-h-0 w-full flex-1 gap-3 sm:gap-4">
       {/* ---- 玻璃侧栏:空间树 ---- */}
-      <aside className="glass-panel flex w-72 shrink-0 flex-col overflow-hidden rounded-2xl">
+      <aside className="glass-panel flex w-72 shrink-0 flex-col overflow-hidden rounded-[22px]">
         <div className="flex items-center justify-between gap-2 border-b border-white/40 px-3 py-2">
-          <span className="text-[11px] font-medium uppercase tracking-wider text-faint">
+          <span className="text-[11px] font-medium uppercase tracking-wider text-muted">
             {t('nav.browse')}
           </span>
           <AddSpace parentId={selected.id} />
@@ -100,7 +100,7 @@ export default function Browse() {
           </div>
 
           {selected.children.length === 0 ? (
-            <p className="rounded-2xl border border-dashed border-white/80 bg-white/45 px-5 py-8 text-center text-[13px] text-faint backdrop-blur-md">
+            <p className="rounded-2xl border border-dashed border-white/80 bg-white/45 px-5 py-8 text-center text-[13px] text-muted backdrop-blur-md">
               {t('browse.noChildren')}
             </p>
           ) : (
@@ -130,11 +130,11 @@ function ChildCard({
       <button
         type="button"
         onClick={onOpen}
-        className="glass-card lift-card group flex w-full flex-col gap-2.5 rounded-2xl p-3.5 text-left"
+        className="glass-card lift-card group flex w-full flex-col gap-2.5 rounded-[20px] p-3.5 text-left"
       >
         <div className="flex w-full items-center justify-between gap-2">
           <TypeBadge tag={node.type_tag} />
-          <span className="font-mono text-[11px] text-faint">{node.children.length}</span>
+          <span className="font-mono text-[11px] text-muted">{node.children.length}</span>
         </div>
         <span className="flex w-full items-center gap-1.5">
           <span className="min-w-0 flex-1 truncate text-[14px] font-medium text-ink">
