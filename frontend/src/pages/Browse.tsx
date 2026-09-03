@@ -10,39 +10,17 @@
 import { Fragment, useEffect, useRef, useState } from 'react';
 import type { CSSProperties, DragEvent, ReactNode } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
-import { Icon, CAT_ICON, TYPE_ICON } from '../components/icons';
+import { Icon, TYPE_ICON } from '../components/icons';
 import { Wordmark, Seg, StatusBadge, ToastsHost } from '../components/ui';
 import { TabBar, TabLink } from '../components/TabBar';
 import { ItemSheet } from '../components/ItemSheet';
-import {
-  CATS,
-  TYPE_TINT,
-  STATUS,
-  dirById,
-  chainOf,
-  pathNames,
-  countItemsIn,
-  directItemsIn,
-  type DirNode,
-  type Item,
-} from '../mock/data';
+import { catMeta, STATUS, TYPE_TINT } from '../lib/meta';
+import { chainOf, countItemsIn, dirById, directItemsIn, pathNames } from '../lib/tree';
+import type { DirNode, Item } from '../lib/types';
 import { useCatalog } from '../stores/catalog';
 import { useToast } from '../stores/toast';
 
 const V = (o: Record<string, string | number>): CSSProperties => o as CSSProperties;
-
-const ROOT_TINT: Record<string, { a: string; b: string }> = {
-  bedroom: { a: 'oklch(54% .07 176)', b: 'oklch(44% .06 190)' },
-  study: { a: 'oklch(50% .08 205)', b: 'oklch(42% .07 216)' },
-  office: { a: 'oklch(50% .06 236)', b: 'oklch(41% .06 248)' },
-  storage: { a: 'oklch(52% .09 76)', b: 'oklch(44% .09 92)' },
-};
-const SCENE_LABEL: Record<string, string> = {
-  bedroom: '家 · 卧室',
-  study: '书房',
-  office: '工作',
-  storage: '储物间',
-};
 
 type View = 'all' | 'folders' | 'items';
 type Drag = { kind: 'folder' | 'item'; id: string };
@@ -182,8 +160,8 @@ export default function Browse() {
 
   /* -------- small render helpers ---------------------------------------- */
   const stBadge = (it: Item) => <StatusBadge cls={it.status} label={STATUS[it.status].label} />;
-  const catColor = (it: Item) => CATS[it.cat]?.tint ?? 'var(--accent)';
-  const catLabel = (it: Item) => CATS[it.cat]?.label ?? it.cat;
+  const catColor = (it: Item) => catMeta(it.cat).tint;
+  const catLabel = (it: Item) => catMeta(it.cat).label;
 
   const relMono = (it: Item) => {
     const chain = chainOf(tree, it.spot);
@@ -275,7 +253,10 @@ export default function Browse() {
       {sectionHead('顶层场景', `${tree.length} 个 · 每个都是一条路径的开头`)}
       <div className="grid-scenes">
         {tree.map((sc) => {
-          const tint = ROOT_TINT[sc.id] ?? { a: 'var(--accent)', b: 'var(--accent-deep)' };
+          const tint = {
+            a: sc.layout?.tintA ?? 'var(--accent)',
+            b: sc.layout?.tintB ?? 'var(--accent-deep)',
+          };
           const cnt = countItemsIn(tree, items, sc.id);
           return (
             <Link
@@ -290,7 +271,7 @@ export default function Browse() {
               </span>
               <span className="nm">{sc.name}</span>
               <span className="sub">
-                {sc.kids.length} 个子容器 · {SCENE_LABEL[sc.id] ?? ''}
+                {sc.kids.length} 个子容器{sc.layout?.group ? ` · ${sc.layout.group}` : ''}
               </span>
             </Link>
           );
@@ -355,7 +336,7 @@ export default function Browse() {
                 style={V({ ['--tc']: catColor(it) })}
               >
                 <span className="glyph">
-                  <Icon name={CAT_ICON[it.cat]} />
+                  <Icon name={catMeta(it.cat).icon} />
                 </span>
                 <span className="ir-main">
                   <span className="ir-name">

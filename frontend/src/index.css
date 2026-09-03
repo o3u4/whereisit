@@ -332,7 +332,7 @@ svg { display: block; }
 }
 .badge--status-present { color: var(--present); background: var(--present-soft); }
 .badge--status-lent    { color: var(--lent); background: var(--lent-soft); }
-.badge--status-gone    { color: var(--gone); background: var(--gone-soft); }
+.badge--status-consumed { color: var(--gone); background: var(--gone-soft); }
 .badge--count { color: var(--muted); background: rgb(255 255 255 / 0.66); border: 1px solid rgb(255 255 255 / 0.8); }
 .badge .cdot { width: 6px; height: 6px; border-radius: 50%; background: currentColor; }
 .dot { width: 8px; height: 8px; border-radius: 50%; background: currentColor; }

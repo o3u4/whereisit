@@ -8,8 +8,10 @@
 import type { CSSProperties } from 'react';
 import { Link } from 'react-router-dom';
 import { Sheet, StatusBadge } from './ui';
-import { Icon, CAT_ICON } from './icons';
-import { CATS, pathNames, type Item } from '../mock/data';
+import { Icon } from './icons';
+import { catMeta } from '../lib/meta';
+import { pathNames } from '../lib/tree';
+import type { Item } from '../lib/types';
 import { useCatalog } from '../stores/catalog';
 import { useToast } from '../stores/toast';
 
@@ -30,7 +32,7 @@ export function ItemSheet({
   const toast = useToast((s) => s.push);
 
   if (!item) return null;
-  const cat = CATS[item.cat];
+  const cat = catMeta(item.cat);
   const tintVar = { ['--tc']: cat.tint } as CSSProperties;
   const path = '~/ ' + pathNames(tree, item.spot).join(' / ');
   const lent = item.status === 'lent';
@@ -87,7 +89,7 @@ export function ItemSheet({
       <div className="sheet-body">
         <div className="row gap10" style={{ alignItems: 'center' }}>
           <span className="brw-cglyph" style={tintVar}>
-            <Icon name={CAT_ICON[item.cat]} />
+            <Icon name={cat.icon} />
           </span>
           <span className="col" style={{ minWidth: 0 }}>
             <b className="t-h3" style={{ fontWeight: 750 }}>

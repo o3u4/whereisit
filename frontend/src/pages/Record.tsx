@@ -9,11 +9,13 @@
 import { useEffect, useRef, useState } from 'react';
 import type { CSSProperties, ReactNode } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
-import { Icon, CAT_ICON } from '../components/icons';
+import { Icon } from '../components/icons';
 import { Wordmark, Seg, Stepper, StatusBadge, ToastsHost } from '../components/ui';
 import { TabBar, TabLink } from '../components/TabBar';
 import { LocationPicker } from '../components/LocationPicker';
-import { CATS, STATUS, pathNames, type Item, type ItemStatus } from '../mock/data';
+import { catMeta, KNOWN_CAT_LABELS, STATUS } from '../lib/meta';
+import { pathNames } from '../lib/tree';
+import type { Item, ItemStatus, RecentEntry } from '../lib/types';
 import { useCatalog } from '../stores/catalog';
 import { useToast } from '../stores/toast';
 
@@ -21,25 +23,13 @@ const V = (o: Record<string, string>): CSSProperties => o as CSSProperties;
 
 type Mode = 'A' | 'B';
 
-const STATUS_OPTS: { value: ItemStatus; label: string }[] = (['present', 'lent', 'gone'] as const).map(
+type Tone = RecentEntry['tone'];
+
+const STATUS_OPTS: { value: ItemStatus; label: string }[] = (['present', 'lent', 'consumed'] as const).map(
   (v) => ({ value: v, label: STATUS[v].label }),
 );
 
 const stLabel = (s: ItemStatus) => STATUS[s].label;
-
-/** stable-ish unique slug for a fresh item (guards existing slugs by suffix) */
-function freshSlug(name: string, items: Item[]): string {
-  const base =
-    name
-      .trim()
-      .toLowerCase()
-      .replace(/[^\p{L}\p{N}]+/gu, '-')
-      .replace(/^-+|-+$/g, '') || 'item';
-  let slug = base;
-  let i = 1;
-  while (items.some((it) => it.slug === slug)) slug = `${base}-${i++}`;
-  return slug;
-}
 
 export default function Record() {
   const navigate = useNavigate();
@@ -48,10 +38,9 @@ export default function Record() {
 
   const items = useCatalog((s) => s.items);
   const tree = useCatalog((s) => s.tree);
+  const ready = useCatalog((s) => s.ready);
   const addItem = useCatalog((s) => s.addItem);
-  const moveItem = useCatalog((s) => s.moveItem);
-  const setStatus = useCatalog((s) => s.setStatus);
-  const setQty = useCatalog((s) => s.setQty);
+  const commit = useCatalog((s) => s.commit);
   const pushRecent = useCatalog((s) => s.pushRecent);
   const setReveal = useCatalog((s) => s.setReveal);
 
@@ -72,10 +61,10 @@ export default function Record() {
   const [diss, setDiss] = useState<string[]>([]);
   const [bQ, setBQ] = useState('');
 
-  /* seed from URL on mount (App remounts <Record> per distinct query, so once is enough) */
+  /* seed from URL params once the catalog has loaded (deep-link may land before fetch) */
   const booted = useRef(false);
   useEffect(() => {
-    if (booted.current) return;
+    if (!ready || booted.current) return;
     booted.current = true;
     const mv = search.get('move');
     const at = search.get('at');
@@ -89,12 +78,15 @@ export default function Record() {
         setStatusV(it.status);
         setSpot(at || it.spot);
         setDone(false);
+      } else if (at) {
+        setSpot(at);
       }
     } else if (at) {
       setSpot(at);
     }
+    // booted.current guards re-seeding when `search` changes after the first run
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [ready, search]);
 
   const srcItem = slug ? items.find((i) => i.slug === slug) ?? null : null;
   const spotPath = (id: string) => '~/ ' + pathNames(tree, id).join(' / ');
@@ -160,7 +152,7 @@ export default function Record() {
   /* -------- mode B chooser filter -------------------------------------- */
   const bQuery = bQ.trim().toLowerCase();
   const bList = bQuery
-    ? items.filter((it) => (it.name + ' ' + it.alias + ' ' + (CATS[it.cat]?.label ?? '')).toLowerCase().includes(bQuery))
+    ? items.filter((it) => (it.name + ' ' + it.alias + ' ' + it.cat).toLowerCase().includes(bQuery))
     : items;
 
   /* -------- CTA validity ------------------------------------------------ */
@@ -175,46 +167,75 @@ export default function Record() {
   const changed =
     srcItem !== null &&
     (spot !== srcItem.spot || qty !== srcItem.qty || status !== srcItem.status);
-  const ok = mode === 'A' ? !!cat && !!spot && aName.trim().length > 0 : srcItem ? changed : false;
+  const validQty = qty >= 1;
+  const ok =
+    mode === 'A'
+      ? validQty && !!cat && !!spot && aName.trim().length > 0
+      : srcItem
+        ? changed && validQty
+        : false;
   const ctaLabel = mode === 'A' ? '确认登记' : '确认移动';
 
-  const confirm = () => {
-    if (!ok) return;
-    if (mode === 'A') confirmA();
-    else if (srcItem) confirmB(srcItem);
+  const busyRef = useRef(false);
+  const confirm = async () => {
+    if (!ok || busyRef.current) return;
+    busyRef.current = true;
+    try {
+      if (mode === 'A') await confirmA();
+      else if (srcItem) await confirmB(srcItem);
+    } finally {
+      busyRef.current = false;
+    }
   };
 
-  const confirmA = () => {
+  const confirmA = async () => {
     const name = aName.trim();
     if (!cat || !spot || !name) return;
-    const u = unit.trim() || '件';
-    const s = freshSlug(name, items);
-    addItem({ slug: s, name, alias: aAlias.trim(), qty: Math.max(0, qty), unit: u, cat, status, spot });
+    const s = await addItem({
+      name,
+      alias: aAlias.trim() || undefined,
+      qty: Math.max(1, qty),
+      unit: unit.trim() || '件',
+      cat,
+      status,
+      spot,
+    });
+    if (!s) {
+      toast('登记失败 · 无法连接后端');
+      return;
+    }
     pushRecent({ id: 'r' + Date.now(), verb: '放好', tone: 'present', icon: 'plus', name, sub: pathNames(tree, spot).join(' / '), time: '刚刚' });
     toast(`已登记「${name}」`);
     setSlug(s);
     setDone(true);
   };
 
-  const confirmB = (it: Item) => {
+  const confirmB = async (it: Item) => {
     const locC = spot !== it.spot;
     const qC = qty !== it.qty;
     const sC = status !== it.status;
     if (!(locC || qC || sC)) return;
-    if (locC && spot) moveItem(it.slug, spot);
-    if (qC) setQty(it.slug, Math.max(0, qty));
-    if (sC) setStatus(it.slug, status);
+    const res = await commit(it.slug, {
+      spot: locC && spot ? spot : undefined,
+      qty: qC ? Math.max(1, qty) : undefined,
+      status: sC ? status : undefined,
+    });
+    if (!res) {
+      toast('更新失败 · 无法连接后端');
+      return;
+    }
+    const targetSpot = locC && spot ? spot : it.spot;
     let verb = '挪动';
-    let tone: 'present' | 'lent' | 'gone' | 'accent' = 'present';
-    let icon = 'move';
+    let tone: Tone = 'present';
+    let icon: string = 'move';
     if (!locC && sC) {
       if (status === 'lent') {
         verb = '借出';
         tone = 'lent';
         icon = 'arrow-l';
-      } else if (status === 'gone') {
+      } else if (status === 'consumed') {
         verb = '用完';
-        tone = 'gone';
+        tone = 'consumed';
         icon = 'x';
       } else {
         verb = '更新';
@@ -222,10 +243,10 @@ export default function Record() {
       }
     } else if (qC) {
       verb = '整理';
-      icon = 'move';
     }
-    pushRecent({ id: 'r' + Date.now(), verb, tone, icon, name: it.name, sub: spot ? pathNames(tree, spot).join(' / ') : pathNames(tree, it.spot).join(' / '), time: '刚刚' });
+    pushRecent({ id: 'r' + Date.now(), verb, tone, icon, name: it.name, sub: pathNames(tree, targetSpot).join(' / '), time: '刚刚' });
     toast(`已更新「${it.name}」的位置与状态`);
+    setSlug(res.slug);
     setDone(true);
   };
 
@@ -241,7 +262,7 @@ export default function Record() {
     mode === 'A' ? (
       <>
         <PvRow k="名称" v={aName.trim() || <Faint>未填写</Faint>} />
-        <PvRow k="类别" v={cat ? CATS[cat].label : <Faint>未选择</Faint>} />
+        <PvRow k="类别" v={cat ? catMeta(cat).label : <Faint>未选择</Faint>} />
         <PvRow k="数量" v={`${qty} ${unit}`} mono />
         <PvRow k="状态" v={statusBadge(status)} tail />
         <PvRow k="位置" v={spotPathTxt || <Faint>还没选</Faint>} mono />
@@ -365,17 +386,17 @@ export default function Record() {
           类别 <span className="hint">必填</span>
         </span>
         <div className="rec-cats">
-          {Object.keys(CATS).map((c) => (
+          {KNOWN_CAT_LABELS.map((c) => (
             <button
               key={c}
               type="button"
               className={`rec-cat${cat === c ? ' rec-cat--on' : ''}`}
               aria-pressed={cat === c}
               onClick={() => setCat(c)}
-              style={V({ ['--tc']: CATS[c].tint })}
+              style={V({ ['--tc']: catMeta(c).tint })}
             >
-              <Icon name={CAT_ICON[c]} />
-              {CATS[c].label}
+              <Icon name={catMeta(c).icon} />
+              {c}
             </button>
           ))}
         </div>
@@ -428,8 +449,8 @@ export default function Record() {
         <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
           {bList.map((it) => (
             <button key={it.slug} type="button" className="glass-card rec-bitem" onClick={() => pickItem(it.slug)}>
-              <span className="rec-src-glyph" style={V({ ['--tc']: CATS[it.cat].tint })}>
-                <Icon name={CAT_ICON[it.cat]} />
+              <span className="rec-src-glyph" style={V({ ['--tc']: catMeta(it.cat).tint })}>
+                <Icon name={catMeta(it.cat).icon} />
               </span>
               <span className="rec-src-main">
                 <span className="rec-src-name">
@@ -471,8 +492,8 @@ export default function Record() {
           </button>
         </div>
         <div className="rec-src-row">
-          <span className="rec-src-glyph" style={V({ ['--tc']: CATS[srcItem.cat].tint })}>
-            <Icon name={CAT_ICON[srcItem.cat]} />
+          <span className="rec-src-glyph" style={V({ ['--tc']: catMeta(srcItem.cat).tint })}>
+            <Icon name={catMeta(srcItem.cat).icon} />
           </span>
           <span className="rec-src-main">
             <span className="rec-src-name">
@@ -548,7 +569,7 @@ export default function Record() {
             已放进 <span className="mono-path">~/ {spotPathTxt.replace(/^~\/ /, '')}</span>
           </h2>
           <p className="rec-succ-sub">
-            「{aName.trim()}」× {qty} {unit} · {cat ? CATS[cat].label : ''} · {stLabel(status)}
+            「{aName.trim()}」× {qty} {unit} · {cat ? catMeta(cat).label : ''} · {stLabel(status)}
           </p>
           <div className="rec-succ-actions">
             <button type="button" className="btn btn--soft btn--lg" onClick={startA}>

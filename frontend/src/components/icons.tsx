@@ -4,7 +4,7 @@
  */
 
 import type { CSSProperties, ReactNode } from 'react';
-import type { DirType } from '../mock/data';
+import type { DirType } from '../lib/types';
 
 export type IconName =
   | 'arrow-l'
@@ -144,14 +144,6 @@ export function Icon({ name, size, className, style }: IconProps) {
   );
 }
 
-/** category key -> glyph */
-export const CAT_ICON: Record<string, IconName> = {
-  elec: 'bolt',
-  doc: 'doc',
-  tool: 'scissor',
-  daily: 'key',
-};
-
 export const TYPE_ICON: Record<DirType, IconName> = {
   room: 'room',
   wardrobe: 'wardrobe',
@@ -159,6 +151,7 @@ export const TYPE_ICON: Record<DirType, IconName> = {
   drawer: 'drawer',
   shelf: 'shelf',
   box: 'box',
+  generic: 'box',
 };
 
 /** tiny inline-block dot (chip/tag status markers) */

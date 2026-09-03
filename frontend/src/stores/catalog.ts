@@ -1,16 +1,16 @@
 /*
- * whereisit · reactive demo catalog (zustand).
- * Holds the live items/tree plus cross-page state (recent activity, reveal request).
- * Browse-page concerns (cur container, view seg, expanded nodes) stay local to that page,
- * mirroring the prototype's per-screen isolation.
+ * whereisit · catalog store (zustand) backed by the real backend API.
+ * Holds live items/tree + cross-page state (recent activity, reveal request).
+ * Writes go through a serialized promise queue so rapid successive writes (e.g.
+ * record confirm + refresh) never interleave; reads then reconcile from a refetch.
+ * `recent` is client-side only (activity log lands in M4).
  */
 
 import { create } from 'zustand';
-import type { Item, ItemStatus, RecentEntry, DirNode } from '../mock/data';
-import { INITIAL_ITEMS, INITIAL_RECENT, TREE, cutDir, attachDir, dirById } from '../mock/data';
+import * as api from '../api/client';
+import type { DirNode, Item, ItemStatus, RecentEntry } from '../lib/types';
 
 export interface AddItemInput {
-  slug: string;
   name: string;
   alias?: string;
   qty: number;
@@ -20,71 +20,166 @@ export interface AddItemInput {
   spot: string;
 }
 
+export interface CommitFields {
+  spot?: string;
+  qty?: number;
+  status?: ItemStatus;
+}
+
+export interface CommitResult {
+  /** surviving lot id (a merge may delete the moved row and return the target) */
+  slug: string;
+  merged: boolean;
+}
+
 interface CatalogState {
   items: Item[];
   tree: DirNode[];
   recent: RecentEntry[];
   /** item slug requested for reveal on /browse (record success "去看看它在哪") */
   reveal: string | null;
+  ready: boolean;
+  loading: boolean;
+  error: string | null;
 
-  moveItem: (slug: string, toId: string) => void;
+  load: () => Promise<void>;
+  moveItem: (slug: string, toId: string) => Promise<void>;
   /** reparent a container subtree under another container (drag & drop on browse) */
-  moveDir: (dirId: string, intoId: string) => void;
-  setStatus: (slug: string, status: ItemStatus) => void;
-  setQty: (slug: string, qty: number) => void;
-  addItem: (input: AddItemInput) => void;
+  moveDir: (dirId: string, intoId: string) => Promise<void>;
+  setStatus: (slug: string, status: ItemStatus) => Promise<void>;
+  setQty: (slug: string, qty: number) => Promise<void>;
+  /** register a fresh presence; resolves to the surviving lot id (null on failure) */
+  addItem: (input: AddItemInput) => Promise<string | null>;
+  /** single merged PATCH for record's move/update flow; resolves survivor lot */
+  commit: (slug: string, fields: CommitFields) => Promise<CommitResult | null>;
   pushRecent: (entry: RecentEntry) => void;
   setReveal: (slug: string | null) => void;
 }
 
-const patchItem = (items: Item[], slug: string, patch: Partial<Pick<Item, 'spot' | 'status' | 'qty'>>): Item[] =>
-  items.map((it) => (it.slug === slug ? { ...it, ...patch } : it));
+let queue: Promise<unknown> = Promise.resolve();
+function enqueue<T>(fn: () => Promise<T>): Promise<T> {
+  const next = queue.then(fn, fn);
+  queue = next.then(
+    () => undefined,
+    () => undefined,
+  );
+  return next;
+}
 
-export const useCatalog = create<CatalogState>((set) => ({
-  items: INITIAL_ITEMS,
-  tree: TREE,
-  recent: INITIAL_RECENT,
-  reveal: null,
+const errText = (e: unknown): string => (e instanceof Error ? e.message : String(e));
 
-  moveItem: (slug, toId) =>
-    set((s) => ({ items: patchItem(s.items, slug, { spot: toId }) })),
+/** dedupes concurrent load() calls (StrictMode double-mount / repeated effects) */
+let boot: Promise<void> | null = null;
 
-  moveDir: (dirId, intoId) =>
-    set((s) => {
-      if (dirId === intoId) return s;
-      const { nodes, node } = cutDir(s.tree, dirId);
-      if (!node || !dirById(nodes, intoId) || dirById([node], intoId)) return s;
-      return { tree: attachDir(nodes, intoId, node) };
-    }),
+export const useCatalog = create<CatalogState>((set) => {
+  const refreshItems = async (): Promise<void> => {
+    set({ items: await api.fetchItems(), error: null });
+  };
 
-  setStatus: (slug, status) =>
-    set((s) => ({ items: patchItem(s.items, slug, { status }) })),
+  return {
+    items: [],
+    tree: [],
+    recent: [],
+    reveal: null,
+    ready: false,
+    loading: false,
+    error: null,
 
-  setQty: (slug, qty) =>
-    set((s) => ({
-      items: patchItem(s.items, slug, { qty: Math.max(0, qty) }),
-    })),
+    load: () => {
+      if (!boot) {
+        boot = (async () => {
+          set({ loading: true });
+          try {
+            const [tree, items] = await Promise.all([api.fetchTree(), api.fetchItems()]);
+            set({ tree, items, ready: true, loading: false, error: null });
+          } catch (e) {
+            set({ ready: true, loading: false, error: errText(e) });
+          } finally {
+            boot = null;
+          }
+        })();
+      }
+      return boot;
+    },
 
-  addItem: (input) =>
-    set((s) => {
-      const already = s.items.some((it) => it.slug === input.slug);
-      if (already) return s; // slug collision guard
-      const item: Item = {
-        slug: input.slug,
-        name: input.name,
-        alias: input.alias || input.name,
-        qty: Math.max(1, input.qty),
-        unit: input.unit,
-        cat: input.cat,
-        status: input.status || 'present',
-        attrs: [],
-        spot: input.spot,
-      };
-      return { items: [...s.items, item] };
-    }),
+    moveItem: (slug, toId) =>
+      enqueue(async () => {
+        try {
+          await api.patchLot(Number(slug), { space_id: Number(toId) });
+          await refreshItems();
+        } catch (e) {
+          set({ error: errText(e) });
+        }
+      }),
 
-  pushRecent: (entry) =>
-    set((s) => ({ recent: [entry, ...s.recent].slice(0, 12) })),
+    moveDir: (dirId, intoId) =>
+      enqueue(async () => {
+        try {
+          await api.moveSpace(Number(dirId), Number(intoId));
+          set({ tree: await api.fetchTree(), error: null });
+        } catch (e) {
+          set({ error: errText(e) });
+        }
+      }),
 
-  setReveal: (slug) => set({ reveal: slug }),
-}));
+    setStatus: (slug, status) =>
+      enqueue(async () => {
+        try {
+          await api.patchLot(Number(slug), { status });
+          await refreshItems();
+        } catch (e) {
+          set({ error: errText(e) });
+        }
+      }),
+
+    setQty: (slug, qty) =>
+      enqueue(async () => {
+        try {
+          await api.patchLot(Number(slug), { qty: Math.max(1, qty) });
+          await refreshItems();
+        } catch (e) {
+          set({ error: errText(e) });
+        }
+      }),
+
+    addItem: (input) =>
+      enqueue(async () => {
+        try {
+          const { item } = await api.registerItem({
+            name: input.name,
+            alias: input.alias || undefined,
+            category: input.cat || undefined,
+            unit: input.unit.trim() || undefined,
+            qty: Math.max(1, input.qty),
+            status: input.status ?? 'present',
+            space_id: Number(input.spot),
+          });
+          await refreshItems();
+          return item.slug;
+        } catch (e) {
+          set({ error: errText(e) });
+          return null;
+        }
+      }),
+
+    commit: (slug, fields) =>
+      enqueue(async () => {
+        try {
+          const patch: api.PatchFields = {};
+          if (fields.spot !== undefined) patch.space_id = Number(fields.spot);
+          if (fields.qty !== undefined) patch.qty = Math.max(1, fields.qty);
+          if (fields.status !== undefined) patch.status = fields.status;
+          const { item, merged } = await api.patchLot(Number(slug), patch);
+          await refreshItems();
+          return { slug: item.slug, merged };
+        } catch (e) {
+          set({ error: errText(e) });
+          return null;
+        }
+      }),
+
+    pushRecent: (entry) => set((s) => ({ recent: [entry, ...s.recent].slice(0, 12) })),
+
+    setReveal: (slug) => set({ reveal: slug }),
+  };
+});

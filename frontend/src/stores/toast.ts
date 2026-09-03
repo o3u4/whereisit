@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 
-export type ToastTone = 'accent' | 'present' | 'lent' | 'gone' | 'danger';
+export type ToastTone = 'accent' | 'present' | 'lent' | 'consumed' | 'danger';
 
 export interface ToastItem {
   id: number;

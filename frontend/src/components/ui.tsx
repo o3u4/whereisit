@@ -7,7 +7,8 @@
 import type { ReactNode } from 'react';
 import { Link } from 'react-router-dom';
 import { Icon, CDot, type IconName } from './icons';
-import { STATUS } from '../mock/data';
+import { STATUS } from '../lib/meta';
+import type { ItemStatus } from '../lib/types';
 import { useToast } from '../stores/toast';
 
 /* ------------------------------------------------ wordmark --------------- */
@@ -23,7 +24,7 @@ export function Wordmark({ home = '/' }: { home?: string }) {
 }
 
 /* ------------------------------------------------ badge ------------------ */
-export type StatusCls = 'present' | 'lent' | 'gone';
+export type StatusCls = ItemStatus;
 
 export function StatusBadge({ cls, label }: { cls: StatusCls; label: string }) {
   return (
@@ -218,7 +219,8 @@ export function EmptyState({
 }
 
 /** status text/label helper (在 / 借出 / 用完) */
-export const statusLabel = (s: string): string => STATUS[s as keyof typeof STATUS]?.label ?? s;
+export const statusLabel = (s: string): string =>
+  s === 'present' || s === 'lent' || s === 'consumed' ? STATUS[s].label : s;
 
 /** build toast host (fixed). Consumes the global toast store. */
 export function ToastsHost() {

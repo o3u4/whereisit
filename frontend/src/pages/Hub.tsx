@@ -7,20 +7,13 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import type { CSSProperties, KeyboardEvent, ReactNode } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { Icon, CDot, CAT_ICON, TYPE_ICON, type IconName } from '../components/icons';
+import { Icon, CDot, TYPE_ICON, type IconName } from '../components/icons';
 import { Wordmark, Seg, Switch, Sheet, StatusBadge, Kbd, EmptyState, ToastsHost } from '../components/ui';
 import { TabBar, TabLink, TabAction } from '../components/TabBar';
 import { ItemSheet } from '../components/ItemSheet';
-import {
-  CATS,
-  SCENES,
-  TYPE_TINT,
-  dirById,
-  pathNames,
-  countItemsIn,
-  type Item,
-  type Scene,
-} from '../mock/data';
+import { catMeta, TYPE_TINT } from '../lib/meta';
+import { countItemsIn, pathNames, scenesFromTree } from '../lib/tree';
+import type { Item, Scene } from '../lib/types';
 import { useCatalog } from '../stores/catalog';
 import { useToast } from '../stores/toast';
 
@@ -103,21 +96,25 @@ export default function Hub() {
 
   const item = itemSlug ? (items.find((i) => i.slug === itemSlug) ?? null) : null;
 
+  const scenes = useMemo(() => scenesFromTree(tree), [tree]);
+
   /* ---- spotlight results ---- */
   const query = q.trim().toLowerCase();
   const rows = useMemo<Row[]>(() => {
     if (!query) {
-      const hot = ['keys', 'hdmi', 'passport', 'scissor'];
-      return hot.filter((s) => items.some((i) => i.slug === s)).map((s) => ({ kind: 'item' as const, slug: s }));
+      const hot = ['HDMI 线', '备用钥匙', '护照', '剪刀'];
+      const slugs = hot
+        .map((n) => items.find((i) => i.name === n)?.slug)
+        .filter((s): s is string => !!s);
+      return slugs.map((s) => ({ kind: 'item' as const, slug: s }));
     }
-    const hitItem = (it: Item) =>
-      (it.name + ' ' + it.alias + ' ' + (CATS[it.cat]?.label ?? '')).toLowerCase().includes(query);
+    const hitItem = (it: Item) => (it.name + ' ' + it.alias + ' ' + it.cat).toLowerCase().includes(query);
     const itemRows: Row[] = items.filter(hitItem).map((it) => ({ kind: 'item', slug: it.slug }));
-    const spaceRows: Row[] = SCENES.filter((sc) =>
+    const spaceRows: Row[] = scenes.filter((sc) =>
       (sc.name + ' ' + sc.parent).toLowerCase().includes(query),
     ).map((sc) => ({ kind: 'space', slug: sc.slug }));
     return [...itemRows, ...spaceRows];
-  }, [items, query]);
+  }, [items, query, scenes]);
 
   useEffect(() => setSel(-1), [query]);
 
@@ -153,11 +150,11 @@ export default function Hub() {
     if (r.kind === 'item') {
       const it = items.find((x) => x.slug === r.slug);
       if (!it) return null;
-      const cat = CATS[it.cat];
+      const cat = catMeta(it.cat);
       return (
         <button key={r.slug} type="button" className={`result-row${idx === sel ? ' sel' : ''}`} onClick={() => openSel(idx)}>
           <span className="rr-glyph" style={V({ ['--tc']: cat.tint })}>
-            <Icon name={CAT_ICON[it.cat]} />
+            <Icon name={cat.icon} />
           </span>
           <span className="rr-main">
             <span className="rr-name">
@@ -175,7 +172,7 @@ export default function Hub() {
         </button>
       );
     }
-    const sc = SCENES.find((x) => x.slug === r.slug);
+    const sc = scenes.find((x) => x.slug === r.slug);
     if (!sc) return null;
     return (
       <button key={r.slug} type="button" className={`result-row${idx === sel ? ' sel' : ''}`} onClick={() => openSel(idx)}>
@@ -307,6 +304,7 @@ export default function Hub() {
             </section>
 
             <div className="hub-sections">
+              {recent.length > 0 ? (
               <section aria-labelledby="recentTitle">
                 <div className="section-head">
                   <div>
@@ -344,6 +342,7 @@ export default function Hub() {
                   ))}
                 </div>
               </section>
+              ) : null}
 
               <section aria-labelledby="sceneTitle">
                 <div className="section-head">
@@ -360,8 +359,8 @@ export default function Hub() {
                   </Link>
                 </div>
                 <div className="grid-scenes">
-                  {SCENES.map((sc, i) => {
-                    const kids = dirById(tree, sc.slug)?.kids ?? [];
+                  {scenes.map((sc, i) => {
+                    const kids = sc.kids;
                     return (
                       <article
                         key={sc.slug}
@@ -623,7 +622,7 @@ function ExistSheet({
         (scope === 'study' || scope === 'bedroom'
           ? countItemsIn(tree, [it], scope) > 0
           : true);
-      return inScope && (it.name + ' ' + it.alias + ' ' + (CATS[it.cat]?.label ?? '')).toLowerCase().includes(query);
+      return inScope && (it.name + ' ' + it.alias + ' ' + it.cat).toLowerCase().includes(query);
     });
   }
 

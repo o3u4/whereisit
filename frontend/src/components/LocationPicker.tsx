@@ -7,7 +7,8 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import type { CSSProperties } from 'react';
 import { Sheet } from './ui';
 import { Icon, TYPE_ICON } from './icons';
-import { chainOf, pathNames, type DirNode } from '../mock/data';
+import { chainOf, pathNames } from '../lib/tree';
+import type { DirNode } from '../lib/types';
 import { useCatalog } from '../stores/catalog';
 
 function flattenNodes(nodes: DirNode[]): DirNode[] {
