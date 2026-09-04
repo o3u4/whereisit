@@ -27,3 +27,7 @@ class PatchIn(BaseModel):
     qty: Optional[int] = None
     status: Optional[ItemStatus] = None
     space_id: Optional[int] = None
+
+
+class MergeDefsIn(BaseModel):
+    from_id: int

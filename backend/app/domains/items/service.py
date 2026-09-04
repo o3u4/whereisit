@@ -28,6 +28,13 @@ def require_lot(conn: sqlite3.Connection, lot_id: int) -> dict:
     return dict(row)
 
 
+def require_def(conn: sqlite3.Connection, def_id: int) -> dict:
+    row = conn.execute("SELECT * FROM item_defs WHERE id = ?", (def_id,)).fetchone()
+    if row is None:
+        raise NotFound(f"def {def_id} not found")
+    return dict(row)
+
+
 def _category_id(conn: sqlite3.Connection, label: str) -> int:
     label = label.strip()
     n = norm_text(label)
@@ -110,6 +117,71 @@ def remove(conn: sqlite3.Connection, *, lot_id: int) -> dict:
     )
     conn.execute("DELETE FROM item_lots WHERE id = ?", (lot_id,))
     return {"removed_id": lot_id}
+
+
+def merge_defs(conn: sqlite3.Connection, *, keep_id: int, from_id: int) -> dict:
+    """Absorb one def into another: move its lots/aliases/attrs, then drop it.
+
+    Used to merge duplicates (e.g. same item typed slightly differently). The
+    kept def's name/category/unit win; from's aliases (deduped by name_norm) and
+    def attrs (deduped by attr_key via UNIQUE) are folded in. Attrs has no FK on
+    entity_id, so from's def attrs are cleaned manually before removing the row."""
+    keep = require_def(conn, keep_id)
+    require_def(conn, from_id)
+    if keep_id == from_id:
+        raise BadRequest("cannot merge a def into itself")
+
+    cur = conn.execute("UPDATE item_lots SET def_id = ? WHERE def_id = ?", (keep_id, from_id))
+    lots_moved = cur.rowcount
+
+    aliases_added = 0
+    for a in conn.execute(
+        "SELECT name, name_norm FROM item_aliases WHERE def_id = ?", (from_id,)
+    ).fetchall():
+        exists = conn.execute(
+            "SELECT 1 FROM item_aliases WHERE def_id = ? AND name_norm = ?",
+            (keep_id, a["name_norm"]),
+        ).fetchone()
+        if exists is None:
+            conn.execute(
+                "INSERT INTO item_aliases (def_id, name, name_norm) VALUES (?, ?, ?)",
+                (keep_id, a["name"], a["name_norm"]),
+            )
+            aliases_added += 1
+
+    attrs_added = 0
+    for a in conn.execute(
+        "SELECT attr_key, value_type, value_text, value_int, value_real, value_bool, uom "
+        "FROM attrs WHERE entity_type = 'def' AND entity_id = ?",
+        (from_id,),
+    ).fetchall():
+        cur = conn.execute(
+            "INSERT OR IGNORE INTO attrs "
+            "(entity_type, entity_id, attr_key, value_type, value_text, value_int, value_real, value_bool, uom) "
+            "VALUES ('def', ?, ?, ?, ?, ?, ?, ?, ?)",
+            (
+                keep_id,
+                a["attr_key"],
+                a["value_type"],
+                a["value_text"],
+                a["value_int"],
+                a["value_real"],
+                a["value_bool"],
+                a["uom"],
+            ),
+        )
+        attrs_added += cur.rowcount
+
+    conn.execute("DELETE FROM attrs WHERE entity_type = 'def' AND entity_id = ?", (from_id,))
+    conn.execute("DELETE FROM item_defs WHERE id = ?", (from_id,))
+    return {
+        "kept_id": keep_id,
+        "kept_name": keep["name"],
+        "removed_id": from_id,
+        "lots_moved": lots_moved,
+        "aliases_added": aliases_added,
+        "attrs_added": attrs_added,
+    }
 
 
 def lot_out(conn: sqlite3.Connection, lot_id: int) -> dict:

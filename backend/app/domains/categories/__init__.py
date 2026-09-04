@@ -1,0 +1,1 @@
+# categories domain: list/create/rename/delete with item-count + safe delete

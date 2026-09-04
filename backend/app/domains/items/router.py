@@ -5,7 +5,7 @@ from fastapi import APIRouter
 from app.core.api import ok
 from app.db.engine import read, tx
 from app.domains.items import service
-from app.domains.items.schemas import PatchIn, RegisterIn
+from app.domains.items.schemas import MergeDefsIn, PatchIn, RegisterIn
 
 router = APIRouter(prefix="/api/items", tags=["items"])
 
@@ -52,3 +52,9 @@ def patch_lot(lot_id: int, payload: PatchIn) -> dict:
 def delete_lot(lot_id: int) -> dict:
     with tx() as conn:
         return ok(service.remove(conn, lot_id=lot_id))
+
+
+@router.post("/defs/{keep_id}/merge", response_model=dict)
+def merge_defs(keep_id: int, payload: MergeDefsIn) -> dict:
+    with tx() as conn:
+        return ok(service.merge_defs(conn, keep_id=keep_id, from_id=payload.from_id))
