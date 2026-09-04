@@ -98,7 +98,6 @@ svg { display: block; }
 .blob {
   position: absolute;
   border-radius: 50%;
-  filter: blur(46px);
   opacity: 0.9;
 }
 /* per-screen tone via --t1 --t2 --t3 */
@@ -120,8 +119,8 @@ svg { display: block; }
     radial-gradient(140% 90% at 8% -14%, rgb(255 255 255 / 0.85), transparent 52%),
     radial-gradient(90% 100% at 104% -20%, rgb(255 255 255 / 0.34), transparent 62%),
     linear-gradient(168deg, rgb(255 255 255 / 0.5), rgb(255 255 255 / 0.16) 78%);
-  -webkit-backdrop-filter: blur(22px) saturate(180%) brightness(1.05);
-  backdrop-filter: blur(22px) saturate(180%) brightness(1.05);
+  -webkit-backdrop-filter: blur(14px) saturate(180%) brightness(1.05);
+  backdrop-filter: blur(14px) saturate(180%) brightness(1.05);
   box-shadow:
     inset 0 1px 0 rgb(255 255 255 / 0.9),
     inset 0 0 0 1px rgb(255 255 255 / 0.16),
@@ -134,8 +133,8 @@ svg { display: block; }
     radial-gradient(140% 90% at 8% -14%, rgb(255 255 255 / 0.9), transparent 52%),
     radial-gradient(90% 100% at 104% -20%, rgb(255 255 255 / 0.38), transparent 62%),
     linear-gradient(168deg, rgb(255 255 255 / 0.64), rgb(255 255 255 / 0.28) 80%);
-  -webkit-backdrop-filter: blur(28px) saturate(190%) brightness(1.06);
-  backdrop-filter: blur(28px) saturate(190%) brightness(1.06);
+  -webkit-backdrop-filter: blur(16px) saturate(190%) brightness(1.06);
+  backdrop-filter: blur(16px) saturate(190%) brightness(1.06);
   box-shadow:
     inset 0 1px 0 rgb(255 255 255 / 0.95),
     inset 0 0 0 1px rgb(255 255 255 / 0.18),
@@ -147,8 +146,8 @@ svg { display: block; }
   background:
     radial-gradient(130% 86% at 10% -12%, rgb(255 255 255 / 0.95), transparent 50%),
     linear-gradient(168deg, rgb(255 255 255 / 0.66), rgb(255 255 255 / 0.3) 82%);
-  -webkit-backdrop-filter: blur(26px) saturate(190%) brightness(1.06);
-  backdrop-filter: blur(26px) saturate(190%) brightness(1.06);
+  -webkit-backdrop-filter: blur(14px) saturate(190%) brightness(1.06);
+  backdrop-filter: blur(14px) saturate(190%) brightness(1.06);
   box-shadow:
     inset 0 1px 0 rgb(255 255 255 / 0.98),
     inset 0 0 0 1px rgb(255 255 255 / 0.2),
@@ -160,8 +159,8 @@ svg { display: block; }
   background:
     radial-gradient(150% 200% at 0% 0%, rgb(255 255 255 / 0.9), transparent 60%),
     linear-gradient(180deg, rgb(255 255 255 / 0.68), rgb(255 255 255 / 0.46));
-  -webkit-backdrop-filter: blur(14px) saturate(170%) brightness(1.04);
-  backdrop-filter: blur(14px) saturate(170%) brightness(1.04);
+  -webkit-backdrop-filter: blur(10px) saturate(170%) brightness(1.04);
+  backdrop-filter: blur(10px) saturate(170%) brightness(1.04);
   box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.9), var(--sh-1);
 }
 /* colour-carrying scene card: tint pair defined by page inline --tint-a/b */
@@ -177,8 +176,8 @@ svg { display: block; }
       color-mix(in oklch, var(--tint-a) 30%, transparent),
       color-mix(in oklch, var(--tint-b) 46%, transparent) 88%),
     linear-gradient(160deg, var(--tint-a), var(--tint-b));
-  -webkit-backdrop-filter: blur(24px) saturate(200%) brightness(1.05);
-  backdrop-filter: blur(24px) saturate(200%) brightness(1.05);
+  -webkit-backdrop-filter: blur(14px) saturate(200%) brightness(1.05);
+  backdrop-filter: blur(14px) saturate(200%) brightness(1.05);
   box-shadow:
     inset 0 1px 0 rgb(255 255 255 / 0.95),
     inset 0 0 0 1px rgb(255 255 255 / 0.25),
@@ -457,8 +456,8 @@ main { flex: 1; }
   padding: 0 8px;
   border: 1px solid rgb(255 255 255 / 0.86);
   background: rgb(250 251 250 / 0.74);
-  -webkit-backdrop-filter: blur(28px) saturate(190%);
-  backdrop-filter: blur(28px) saturate(190%);
+  -webkit-backdrop-filter: blur(16px) saturate(190%);
+  backdrop-filter: blur(16px) saturate(190%);
   box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.9), var(--sh-3);
 }
 .tab {
@@ -676,7 +675,7 @@ main { flex: 1; }
   position: fixed; z-index: 90;
   display: flex; flex-direction: column;
   background: rgb(251 252 251 / 0.82);
-  -webkit-backdrop-filter: blur(30px) saturate(190%); backdrop-filter: blur(30px) saturate(190%);
+  -webkit-backdrop-filter: blur(18px) saturate(190%); backdrop-filter: blur(18px) saturate(190%);
   border: 1px solid rgb(255 255 255 / 0.9);
   box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.98), var(--sh-3);
   transition: transform 0.36s var(--ease-out), opacity 0.3s ease;
@@ -702,7 +701,7 @@ main { flex: 1; }
   min-width: 200px; padding: 6px;
   border-radius: 18px;
   background: rgb(252 253 252 / 0.92);
-  -webkit-backdrop-filter: blur(24px); backdrop-filter: blur(24px);
+  -webkit-backdrop-filter: blur(14px); backdrop-filter: blur(14px);
   border: 1px solid rgb(255 255 255 / 0.95);
   box-shadow: inset 0 1px 0 #fff, var(--sh-3);
   opacity: 0; visibility: hidden; transform: translateY(-4px);
@@ -857,8 +856,8 @@ main { flex: 1; }
   background:
     radial-gradient(120% 180% at 4% -20%, rgb(255 255 255 / 0.95), transparent 55%),
     rgb(255 255 255 / 0.6);
-  -webkit-backdrop-filter: blur(26px) saturate(190%);
-  backdrop-filter: blur(26px) saturate(190%);
+  -webkit-backdrop-filter: blur(16px) saturate(190%);
+  backdrop-filter: blur(16px) saturate(190%);
   box-shadow: inset 0 1px 0 #fff, inset 0 0 0 1px rgb(255 255 255 / 0.3), var(--sh-3);
   transition: transform 0.2s var(--ease-out), box-shadow 0.2s ease;
 }
