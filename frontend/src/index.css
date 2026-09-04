@@ -93,7 +93,6 @@ svg { display: block; }
   position: absolute;
   inset: 0;
   background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.025'/%3E%3C/svg%3E");
-  mix-blend-mode: soft-light;
 }
 .blob {
   position: absolute;
@@ -109,7 +108,7 @@ svg { display: block; }
 .blob.b2 { right: -16vw; top: -12vh; width: 48vmax; height: 48vmax; background: radial-gradient(circle at 52% 44%, var(--t2), transparent 64%); animation: drift 58s var(--ease-spring) infinite alternate-reverse; }
 .blob.b3 { left: 28vw; bottom: -20vh; width: 60vmax; height: 60vmax; background: radial-gradient(circle at 50% 50%, var(--t3), transparent 66%); animation: drift 52s var(--ease-spring) infinite alternate; }
 .blob.b4 { right: 22vw; bottom: -18vh; width: 44vmax; height: 44vmax; background: radial-gradient(circle at 50% 50%, var(--t4), transparent 62%); animation: drift 64s var(--ease-spring) infinite alternate-reverse; }
-@keyframes drift { 0% { transform: translate3d(0,0,0) scale(1); } 100% { transform: translate3d(-3vmax,4vmax,0) scale(1.05); } }
+@keyframes drift { 0% { transform: translate3d(0,0,0); } 100% { transform: translate3d(-3vmax,4vmax,0); } }
 
 /* ------------------------------------------------ glass materials ------- */
 .glass {
