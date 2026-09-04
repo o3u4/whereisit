@@ -227,6 +227,33 @@ def set_category(conn: sqlite3.Connection, *, def_id: int, category_id: Optional
     return {"def_id": def_id, "category_id": category_id}
 
 
+def set_attr(conn: sqlite3.Connection, *, def_id: int, key: str, value: str) -> dict:
+    """Upsert one def-level attribute (item type). Insert order (attr id) is the
+    display order: updating keeps the original slot, adding appends at the end."""
+    require_def(conn, def_id)
+    k = key.strip()
+    v = value.strip()
+    if not k:
+        raise BadRequest("attr key required")
+    conn.execute(
+        "INSERT INTO attrs (entity_type, entity_id, attr_key, value_type, value_text) "
+        "VALUES ('def', ?, ?, 'text', ?) "
+        "ON CONFLICT(entity_type, entity_id, attr_key) "
+        "DO UPDATE SET value_text = excluded.value_text, value_type = 'text'",
+        (def_id, k, v),
+    )
+    return {"def_id": def_id, "attr_key": k, "value": v}
+
+
+def del_attr(conn: sqlite3.Connection, *, def_id: int, key: str) -> dict:
+    require_def(conn, def_id)
+    cur = conn.execute(
+        "DELETE FROM attrs WHERE entity_type = 'def' AND entity_id = ? AND attr_key = ?",
+        (def_id, key.strip()),
+    )
+    return {"def_id": def_id, "attr_key": key, "removed": cur.rowcount > 0}
+
+
 def lot_out(conn: sqlite3.Connection, lot_id: int) -> dict:
     row = conn.execute(_ITEM_LOT_OUT, (lot_id,)).fetchone()
     if row is None:
@@ -236,12 +263,22 @@ def lot_out(conn: sqlite3.Connection, lot_id: int) -> dict:
         "SELECT name FROM item_aliases WHERE def_id = ? ORDER BY id LIMIT 1", (out["def_id"],)
     ).fetchone()
     out["alias"] = alias["name"] if alias else ""
-    attrs = conn.execute(
+    # Notes live on the lot; a legacy def attr "备注" (pre-M4) is folded into the
+    # lot note as a fallback so it stops showing as a duplicate row.
+    notes = out["notes"] or ""
+    legacy_note: Optional[str] = None
+    pairs: list[list[str]] = []
+    for a in conn.execute(
         "SELECT attr_key, value_text FROM attrs WHERE entity_type = 'def' AND entity_id = ? "
         "AND value_text IS NOT NULL ORDER BY id",
         (out["def_id"],),
-    ).fetchall()
-    out["attrs"] = [[a["attr_key"], a["value_text"]] for a in attrs]
+    ).fetchall():
+        if a["attr_key"] == "备注":
+            legacy_note = a["value_text"]
+        else:
+            pairs.append([a["attr_key"], a["value_text"]])
+    out["attrs"] = pairs
+    out["notes"] = notes or legacy_note or ""
     return out
 
 
@@ -262,6 +299,7 @@ def register(
     unit: Optional[str] = None,
     notes: Optional[str] = None,
     attrs: Optional[list[tuple[str, str]]] = None,
+    no_merge: bool = False,
 ) -> dict:
     if qty < 1:
         raise BadRequest("qty must be >= 1")
@@ -273,7 +311,9 @@ def register(
     if created and attrs:
         _write_def_attrs(conn, def_id, attrs)
 
-    if status == "present":
+    # no_merge lets an undo restore rebuild an exact separate lot (no absorbing
+    # into an existing same-def present lot), mirroring the pre-delete state.
+    if status == "present" and not no_merge:
         lot = _present_lot(conn, def_id, space_id)
         if lot is not None:
             conn.execute(
@@ -347,5 +387,13 @@ def patch(
         sets.append("updated_at = datetime('now')")
         params.append(lot_id)
         conn.execute(f"UPDATE item_lots SET {', '.join(sets)} WHERE id = ?", params)
+
+    # Notes now live on the lot; drop any legacy def attr "备注" (pre-M4) so the
+    # read-time fallback can't silently re-surface an old value after an edit.
+    if notes is not None:
+        conn.execute(
+            "DELETE FROM attrs WHERE entity_type = 'def' AND entity_id = ? AND attr_key = '备注'",
+            (cur["def_id"],),
+        )
 
     return {"lot": lot_out(conn, lot_id), "merged": False, "removed_id": None}

@@ -78,6 +78,8 @@ export interface RegisterPayload {
   qty: number;
   status: ItemStatus;
   space_id: number;
+  /** rebuild a separate lot even when a same-def present lot already sits there */
+  no_merge?: boolean;
 }
 
 export async function registerItem(payload: RegisterPayload): Promise<{ item: Item; merged: boolean }> {
@@ -90,6 +92,7 @@ export async function registerItem(payload: RegisterPayload): Promise<{ item: It
     qty: payload.qty,
     status: payload.status,
     space_id: payload.space_id,
+    no_merge: payload.no_merge ?? false,
   });
   return { item: lotToItem(data.lot), merged: data.merged };
 }
@@ -179,6 +182,15 @@ export async function patchDefCategory(
   categoryId: number,
 ): Promise<{ def_id: number; category_id: number }> {
   return request('PATCH', `/items/defs/${defId}`, { category_id: categoryId });
+}
+
+export async function setDefAttr(defId: number, key: string, value: string): Promise<void> {
+  await request('PUT', `/items/defs/${defId}/attrs`, { key, value });
+}
+
+export async function deleteDefAttr(defId: number, key: string): Promise<void> {
+  const params = new URLSearchParams({ key });
+  await request('DELETE', `/items/defs/${defId}/attrs?${params.toString()}`);
 }
 
 export async function search(p: SearchParams): Promise<SearchResult> {

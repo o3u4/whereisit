@@ -210,3 +210,49 @@ def test_register_and_patch_notes(client):
     r = client.patch(f"/api/items/lots/{d['lot']['lot_id']}", json={"notes": "换备注了"})
     assert r.status_code == 200, r.text
     assert r.json()["data"]["lot"]["notes"] == "换备注了"
+
+
+def test_register_no_merge_creates_separate_lot(client):
+    """Undo-delete restore: no_merge must rebuild an independent lot even when a
+    same-def present lot already sits in the target space (no absorbing)."""
+    s = _space(client, "抽屉壬")
+    first = _register(client, "裁纸刀", s["id"], qty=1)
+    assert first["merged"] is False
+    second = _register(client, "裁纸刀", s["id"], qty=2, no_merge=True)
+    assert second["merged"] is False
+    assert second["lot"]["lot_id"] != first["lot"]["lot_id"]
+    lots = [r for r in client.get("/api/items").json()["data"] if r["name"] == "裁纸刀"]
+    assert len(lots) == 2
+    assert {r["qty"] for r in lots} == {1, 2}
+
+
+def test_legacy_note_attr_folds_into_lot_notes(client):
+    s = _space(client, "抽屉癸")
+    d = _register(client, "探针", s["id"], attrs=[{"key": "备注", "value": "小心轻放"}])
+    lot = d["lot"]
+    assert lot["notes"] == "小心轻放"
+    assert "备注" not in [a[0] for a in lot["attrs"]]
+
+
+def test_def_attr_upsert_appends_then_deletes(client):
+    s = _space(client, "盒丙")
+    d = _register(client, "标签机", s["id"], qty=1)
+    def_id = d["lot"]["def_id"]
+    r = client.put(f"/api/items/defs/{def_id}/attrs", json={"key": "耗材", "value": "纸卷"})
+    assert r.status_code == 200, r.text
+    lot = [r for r in client.get("/api/items").json()["data"] if r["def_id"] == def_id][0]
+    assert dict(lot["attrs"])["耗材"] == "纸卷"
+
+    # update keeps slot; adding a new key appends after existing ones
+    client.put(f"/api/items/defs/{def_id}/attrs", json={"key": "耗材", "value": "热敏纸"})
+    second = client.put(f"/api/items/defs/{def_id}/attrs", json={"key": "供电", "value": "电池"})
+    assert second.status_code == 200, second.text
+    lot = [r for r in client.get("/api/items").json()["data"] if r["def_id"] == def_id][0]
+    keys = [a[0] for a in lot["attrs"]]
+    assert keys == ["耗材", "供电"]
+    assert dict(lot["attrs"])["耗材"] == "热敏纸"
+
+    r = client.delete(f"/api/items/defs/{def_id}/attrs", params={"key": "供电"})
+    assert r.status_code == 200, r.text
+    lot = [r for r in client.get("/api/items").json()["data"] if r["def_id"] == def_id][0]
+    assert [a[0] for a in lot["attrs"]] == ["耗材"]

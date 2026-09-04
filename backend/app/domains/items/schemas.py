@@ -22,6 +22,12 @@ class RegisterIn(BaseModel):
     status: ItemStatus = "present"
     space_id: int
     attrs: list[AttrIn] = []
+    no_merge: bool = False
+
+
+class DefAttrIn(BaseModel):
+    key: str = Field(min_length=1, max_length=60)
+    value: str = Field(max_length=500)
 
 
 class PatchIn(BaseModel):

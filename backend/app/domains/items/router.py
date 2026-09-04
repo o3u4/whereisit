@@ -5,7 +5,7 @@ from fastapi import APIRouter
 from app.core.api import ok
 from app.db.engine import read, tx
 from app.domains.items import service
-from app.domains.items.schemas import DefPatchIn, MergeDefsIn, PatchIn, RegisterIn
+from app.domains.items.schemas import DefAttrIn, DefPatchIn, MergeDefsIn, PatchIn, RegisterIn
 
 router = APIRouter(prefix="/api/items", tags=["items"])
 
@@ -31,6 +31,7 @@ def register(payload: RegisterIn) -> dict:
                 unit=payload.unit,
                 notes=payload.notes,
                 attrs=[(a.key, a.value) for a in payload.attrs],
+                no_merge=payload.no_merge,
             )
         )
 
@@ -66,3 +67,15 @@ def merge_defs(keep_id: int, payload: MergeDefsIn) -> dict:
 def patch_def(def_id: int, payload: DefPatchIn) -> dict:
     with tx() as conn:
         return ok(service.set_category(conn, def_id=def_id, category_id=payload.category_id))
+
+
+@router.put("/defs/{def_id}/attrs", response_model=dict)
+def put_def_attr(def_id: int, payload: DefAttrIn) -> dict:
+    with tx() as conn:
+        return ok(service.set_attr(conn, def_id=def_id, key=payload.key, value=payload.value))
+
+
+@router.delete("/defs/{def_id}/attrs", response_model=dict)
+def delete_def_attr(def_id: int, key: str) -> dict:
+    with tx() as conn:
+        return ok(service.del_attr(conn, def_id=def_id, key=key))

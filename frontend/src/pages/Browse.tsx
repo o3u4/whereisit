@@ -14,7 +14,6 @@ import { Icon, TYPE_ICON } from '../components/icons';
 import { Wordmark, Seg, StatusBadge, ToastsHost } from '../components/ui';
 import { TabBar, TabLink } from '../components/TabBar';
 import { ItemSheet } from '../components/ItemSheet';
-import { MergeSheet } from '../components/MergeSheet';
 import { catMeta, STATUS, TYPE_TINT } from '../lib/meta';
 import { chainOf, countItemsIn, dirById, directItemsIn, pathNames } from '../lib/tree';
 import type { DirNode, Item } from '../lib/types';
@@ -49,7 +48,10 @@ export default function Browse() {
   const [dragId, setDragId] = useState<Drag | null>(null);
   const [over, setOver] = useState<string | null>(null);
   const [overItem, setOverItem] = useState<string | null>(null);
-  const [mergeOpen, setMergeOpen] = useState(false);
+  /* inline batch-merge: pick a keep row (○) then check rows to fold into it */
+  const [mergeOn, setMergeOn] = useState(false);
+  const [keepSlug, setKeepSlug] = useState<string | null>(null);
+  const [fold, setFold] = useState<ReadonlySet<string>>(new Set());
   const dragRef = useRef<Drag | null>(null);
 
   /* URL drives the current container (keeps back/forward + reveal coherent) */
@@ -80,6 +82,9 @@ export default function Browse() {
 
   const goDir = (id: string | null) => {
     if (id === cur) return;
+    setMergeOn(false);
+    setKeepSlug(null);
+    setFold(new Set());
     navigate('/browse' + (id ? `?at=${id}` : ''));
   };
 
@@ -91,6 +96,49 @@ export default function Browse() {
   const direct = cur ? directItemsIn(items, cur) : [];
   const openItem = (slug: string) => setItemSlug(slug);
   const item = itemSlug ? itemOf(itemSlug) : null;
+
+  /* -------- inline batch merge (batch twin of item→item drag) ----------- */
+  const keepItem = keepSlug ? itemOf(keepSlug) : null;
+  const foldCount = [...fold].filter((s) => {
+    const it = itemOf(s);
+    return !!it && it.defId !== keepItem?.defId;
+  }).length;
+  const exitMerge = () => {
+    setMergeOn(false);
+    setKeepSlug(null);
+    setFold(new Set());
+  };
+  const enterMerge = () => {
+    setMergeOn(true);
+    setKeepSlug(null);
+    setFold(new Set());
+  };
+  const pickKeep = (slug: string) => {
+    setKeepSlug(slug);
+    setFold(new Set());
+  };
+  const toggleFold = (slug: string) => {
+    if (slug === keepSlug) return;
+    setFold((prev) => {
+      const next = new Set(prev);
+      if (next.has(slug)) next.delete(slug);
+      else next.add(slug);
+      return next;
+    });
+  };
+  const runMerge = async () => {
+    const keep = keepItem;
+    if (!keep) return;
+    const targets = new Set<number>();
+    for (const s of fold) {
+      const it = itemOf(s);
+      if (it && it.defId !== keep.defId) targets.add(it.defId);
+    }
+    let ok = 0;
+    for (const defId of targets) if (await mergeDefs(keep.defId, defId)) ok += 1;
+    if (ok > 0) toast(`已并入 ${ok} 个 →「${keep.name}」，同位置数量自动相加`);
+    exitMerge();
+  };
 
   /* -------- drag & drop ------------------------------------------------ */
   const canDrop = (id: string): boolean => {
@@ -358,60 +406,138 @@ export default function Browse() {
     </div>
   );
 
+  /* the name/tag/qty/spans shared by a normal row and its merge-mode twin */
+  const rowBits = (it: Item) => (
+    <>
+      <span className="glyph">
+        <Icon name={catMeta(it.cat).icon} />
+      </span>
+      <span className="ir-main">
+        <span className="ir-name">
+          <b>{it.name}</b>
+          <span className="tag tag--type" style={V({ ['--tc']: catColor(it) })}>
+            <i className="cdot" style={{ background: catColor(it) }} />
+            {catLabel(it)}
+          </span>
+        </span>
+        <span className="ir-sub">
+          <span className="mono-path">{relMono(it)}</span>
+          {it.alias && it.alias !== it.name ? (
+            <span className="ellip t-xs t-muted">别名 · {it.alias}</span>
+          ) : null}
+        </span>
+      </span>
+      <span className="ir-right">
+        <span className="qty-tag">
+          ×{it.qty}
+          <span className="times">{it.unit}</span>
+        </span>
+        {stBadge(it)}
+      </span>
+    </>
+  );
+
+  const itemsHead = (list: Item[]) => (
+    <div className="brw-section">
+      <span className="st">此处物品</span>
+      {mergeOn ? (
+        <span className="brw-secact">
+          <span className="n">
+            {keepItem
+              ? foldCount > 0
+                ? `把 ${foldCount} 条并入「${keepItem.name}」`
+                : '点右侧「并入」勾选要合并的条目'
+              : '点一条，把它设为「保留」'}
+          </span>
+          <button
+            type="button"
+            className="secchip secchip--solid"
+            disabled={!keepItem || foldCount === 0}
+            onClick={() => void runMerge()}
+          >
+            <Icon name="merge" size={13} />
+            {foldCount > 0 ? `合并 ${foldCount}` : '合并'}
+          </button>
+          <button type="button" className="secchip secchip--ghost" onClick={exitMerge}>
+            <Icon name="x" size={13} />
+            取消
+          </button>
+        </span>
+      ) : (
+        <span className="brw-secact">
+          <span className="n">{list.length} 件</span>
+          {list.length > 1 ? (
+            <button
+              type="button"
+              className="secchip"
+              onClick={enterMerge}
+              title="批量合并：点一条设为「保留」，再勾选要并入的（拖到另一条上也能单个合并）"
+            >
+              <Icon name="merge" size={13} />
+              合并
+            </button>
+          ) : null}
+        </span>
+      )}
+    </div>
+  );
+
   const itemsSection = (list: Item[]) => (
     <Fragment key="items">
-      {sectionHead('此处物品', `${list.length} 件`)}
+      {itemsHead(list)}
       {list.length === 0 ? (
         emptyLeaf
       ) : (
         <div className="stack">
-          {list.map((it) => (
-            <div className="rowline brw-itemrow" key={it.slug}>
-              <button
-                type="button"
-                className={`glass-card item-row grow${dragId?.kind === 'item' && dragId.id === it.slug ? ' dragging' : ''}${overItem === it.slug ? ' drop' : ''}`}
-                {...dragSrc('item', it.slug)}
-                {...mergeDropH(it)}
-                onClick={() => openItem(it.slug)}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter' || e.key === ' ') {
-                    e.preventDefault();
-                    openItem(it.slug);
-                  }
-                }}
+          {list.map((it) =>
+            mergeOn ? (
+              <div
+                key={it.slug}
+                className={`glass-card item-row grow mrg-row${it.slug === keepSlug ? ' is-keep' : ''}`}
+                onClick={() => pickKeep(it.slug)}
                 style={V({ ['--tc']: catColor(it) })}
               >
-                <span className="glyph">
-                  <Icon name={catMeta(it.cat).icon} />
+                <span className="mrg-ring">
+                  {it.slug === keepSlug ? <Icon name="check" size={13} /> : null}
                 </span>
-                <span className="ir-main">
-                  <span className="ir-name">
-                    <b>{it.name}</b>
-                    <span className="tag tag--type" style={V({ ['--tc']: catColor(it) })}>
-                      <i className="cdot" style={{ background: catColor(it) }} />
-                      {catLabel(it)}
-                    </span>
-                  </span>
-                  <span className="ir-sub">
-                    <span className="mono-path">{relMono(it)}</span>
-                    {it.alias && it.alias !== it.name ? (
-                      <span className="ellip t-xs t-muted">别名 · {it.alias}</span>
-                    ) : null}
-                  </span>
-                </span>
-                <span className="ir-right">
-                  <span className="qty-tag">
-                    ×{it.qty}
-                    <span className="times">{it.unit}</span>
-                  </span>
-                  {stBadge(it)}
-                </span>
-              </button>
-              <Link className="ibtn" to={`/record?move=${it.slug}`} aria-label={`挪动 ${it.name}`} title="挪动">
-                <Icon name="move" />
-              </Link>
-            </div>
-          ))}
+                {rowBits(it)}
+                <button
+                  type="button"
+                  className={`btn btn--sm mrg-fold${fold.has(it.slug) ? ' btn--primary' : ' btn--soft'}`}
+                  disabled={!keepItem || it.slug === keepSlug || it.defId === keepItem?.defId}
+                  aria-pressed={fold.has(it.slug)}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    toggleFold(it.slug);
+                  }}
+                >
+                  {fold.has(it.slug) ? '✓ 已选' : '并入'}
+                </button>
+              </div>
+            ) : (
+              <div className="rowline brw-itemrow" key={it.slug}>
+                <button
+                  type="button"
+                  className={`glass-card item-row grow${dragId?.kind === 'item' && dragId.id === it.slug ? ' dragging' : ''}${overItem === it.slug ? ' drop' : ''}`}
+                  {...dragSrc('item', it.slug)}
+                  {...mergeDropH(it)}
+                  onClick={() => openItem(it.slug)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' || e.key === ' ') {
+                      e.preventDefault();
+                      openItem(it.slug);
+                    }
+                  }}
+                  style={V({ ['--tc']: catColor(it) })}
+                >
+                  {rowBits(it)}
+                </button>
+                <Link className="ibtn" to={`/record?move=${it.slug}`} aria-label={`挪动 ${it.name}`} title="挪动">
+                  <Icon name="move" />
+                </Link>
+              </div>
+            ),
+          )}
         </div>
       )}
     </Fragment>
@@ -518,10 +644,6 @@ export default function Browse() {
                 <Icon name="search" size={14} />
                 去中枢搜
               </Link>
-              <button type="button" className="chip chip--glass" onClick={() => setMergeOpen(true)}>
-                <Icon name="merge" size={14} />
-                合并同类
-              </button>
               <Link className="btn btn--primary btn--sm" to="/record">
                 <Icon name="plus" size={16} />
                 登记
@@ -534,7 +656,7 @@ export default function Browse() {
               <p className="section-kicker">空间目录 · BROWSE</p>
               <h1 className="lead-title">容器即路径。点进去，一路下钻。</h1>
               <p className="lead-sub">
-                把一张卡片拖进另一个容器 = 挪动；拖到另一件物品上 = 合并同类。
+                拖进另一个容器 = 挪动；拖到另一件物品上 = 合并同类。「此处物品」旁的「合并」可一次并入多条。
               </p>
             </section>
 
@@ -576,8 +698,7 @@ export default function Browse() {
         </TabBar>
       </div>
 
-      <ItemSheet item={item} open={item !== null} onClose={() => setItemSlug(null)} primary="move" />
-      <MergeSheet open={mergeOpen} onClose={() => setMergeOpen(false)} />
+      <ItemSheet item={item} open={item !== null} onClose={() => setItemSlug(null)} />
 
       <ToastsHost />
     </div>

@@ -86,7 +86,7 @@ ITEMS = [
      "attrs": [["件数", "24 件"]]},
     {"path": ("储物间", "收纳箱 A"), "name": "备用钥匙", "alias": "钥匙,key",
      "category": "日用", "unit": "串", "qty": 1, "status": "present",
-     "attrs": [["备注", "楼下信箱"]]},
+     "notes": "楼下信箱", "attrs": []},
     {"path": ("储物间", "货架", "上层"), "name": "创可贴", "alias": "ok 绷,邦迪",
      "category": "日用", "unit": "盒", "qty": 1, "status": "present",
      "attrs": [["规格", "100 片"]]},
@@ -148,7 +148,8 @@ def seed_items(ids: dict[tuple[str, ...], int]) -> None:
                 "qty": item["qty"],
                 "status": item["status"],
                 "space_id": ids[item["path"]],
-                "attrs": [{"key": k, "value": v} for k, v in item["attrs"]],
+                "attrs": [{"key": k, "value": v} for k, v in item.get("attrs", [])],
+                "notes": item.get("notes"),
             },
         )
 

@@ -73,6 +73,9 @@ interface CatalogState {
   setNotes: (slug: string, notes: string) => Promise<void>;
   /** move an item type (def) to a different category (def-level) */
   changeCategory: (defId: number, categoryId: number) => Promise<boolean>;
+  /** upsert a def-level attribute; order = insertion (append when new) */
+  setDefAttr: (defId: number, key: string, value: string) => Promise<boolean>;
+  removeDefAttr: (defId: number, key: string) => Promise<boolean>;
   /** revert the last reversible mutation; true if something was undone */
   undo: () => Promise<boolean>;
   /** fold one def's presences/aliases/attrs into another (no undo) */
@@ -202,6 +205,31 @@ export const useCatalog = create<CatalogState>((set, get) => {
         try {
           await api.patchDefCategory(defId, categoryId);
           await refreshItems();
+          await refreshCategories(); // per-category item counts shifted
+          return true;
+        } catch (e) {
+          set({ error: errText(e) });
+          return false;
+        }
+      }),
+
+    setDefAttr: (defId, key, value) =>
+      enqueue(async () => {
+        try {
+          await api.setDefAttr(defId, key, value);
+          await refreshItems();
+          return true;
+        } catch (e) {
+          set({ error: errText(e) });
+          return false;
+        }
+      }),
+
+    removeDefAttr: (defId, key) =>
+      enqueue(async () => {
+        try {
+          await api.deleteDefAttr(defId, key);
+          await refreshItems();
           return true;
         } catch (e) {
           set({ error: errText(e) });
@@ -280,6 +308,8 @@ export const useCatalog = create<CatalogState>((set, get) => {
         set({ undoInfo: null });
         try {
           if (u.kind === 'delete') {
+            // rebuild the exact separate lot: no_merge avoids absorbing into an
+            // existing same-def present lot (that would add qty to the front row)
             await api.registerItem({
               name: u.item.name,
               alias: u.item.alias || undefined,
@@ -289,6 +319,7 @@ export const useCatalog = create<CatalogState>((set, get) => {
               qty: Math.max(1, u.item.qty),
               status: u.item.status,
               space_id: Number(u.item.spot),
+              no_merge: true,
             });
           } else if (u.kind === 'register') {
             await api.deleteLot(Number(u.slug));

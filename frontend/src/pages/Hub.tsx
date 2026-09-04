@@ -515,7 +515,7 @@ export default function Hub() {
         </div>
       </div>
 
-      <ItemSheet item={item} open={itemOpen} onClose={closeItem} primary="locate" />
+      <ItemSheet item={item} open={itemOpen} onClose={closeItem} />
 
       <SettingsSheet
         open={settingsOpen}
