@@ -8,6 +8,7 @@
 
 import { create } from 'zustand';
 import * as api from '../api/client';
+import type { SearchModeDTO } from '../api/types';
 import type { DirNode, Item, ItemStatus, RecentEntry } from '../lib/types';
 
 export interface AddItemInput {
@@ -52,6 +53,8 @@ interface CatalogState {
   addItem: (input: AddItemInput) => Promise<string | null>;
   /** single merged PATCH for record's move/update flow; resolves survivor lot */
   commit: (slug: string, fields: CommitFields) => Promise<CommitResult | null>;
+  /** server-side search (read-only, not queued); caller owns async state */
+  search: (q: string, mode?: SearchModeDTO, scopeSpaceId?: number) => Promise<api.SearchResult>;
   pushRecent: (entry: RecentEntry) => void;
   setReveal: (slug: string | null) => void;
 }
@@ -177,6 +180,9 @@ export const useCatalog = create<CatalogState>((set) => {
           return null;
         }
       }),
+
+    search: (q, mode, scopeSpaceId) =>
+      api.search({ q, mode, scope_space_id: scopeSpaceId }),
 
     pushRecent: (entry) => set((s) => ({ recent: [entry, ...s.recent].slice(0, 12) })),
 

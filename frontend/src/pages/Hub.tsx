@@ -12,8 +12,10 @@ import { Wordmark, Seg, Switch, Sheet, StatusBadge, Kbd, EmptyState, ToastsHost 
 import { TabBar, TabLink, TabAction } from '../components/TabBar';
 import { ItemSheet } from '../components/ItemSheet';
 import { catMeta, TYPE_TINT } from '../lib/meta';
-import { countItemsIn, pathNames, scenesFromTree } from '../lib/tree';
+import { countItemsIn, dirById, pathNames, scenesFromTree } from '../lib/tree';
 import type { Item, Scene } from '../lib/types';
+import type { SearchResult } from '../api/client';
+import type { SearchModeDTO } from '../api/types';
 import { useCatalog } from '../stores/catalog';
 import { useToast } from '../stores/toast';
 
@@ -26,6 +28,7 @@ export default function Hub() {
   const items = useCatalog((s) => s.items);
   const tree = useCatalog((s) => s.tree);
   const recent = useCatalog((s) => s.recent);
+  const search = useCatalog((s) => s.search);
   const toast = useToast((s) => s.push);
 
   const [spotOpen, setSpotOpen] = useState(false);
@@ -36,7 +39,11 @@ export default function Hub() {
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [q, setQ] = useState('');
   const [sel, setSel] = useState(-1);
+  const [mode, setMode] = useState<SearchModeDTO>('fuzzy');
+  const [res, setRes] = useState<SearchResult | null>(null);
+  const [searching, setSearching] = useState(false);
   const qInput = useRef<HTMLInputElement>(null);
+  const searchSeq = useRef(0);
 
   const openSpot = (initial = '') => {
     setQ(initial);
@@ -98,7 +105,7 @@ export default function Hub() {
 
   const scenes = useMemo(() => scenesFromTree(tree), [tree]);
 
-  /* ---- spotlight results ---- */
+  /* ---- spotlight results (server-side, debounced; hot defaults stay client-side) ---- */
   const query = q.trim().toLowerCase();
   const rows = useMemo<Row[]>(() => {
     if (!query) {
@@ -108,15 +115,33 @@ export default function Hub() {
         .filter((s): s is string => !!s);
       return slugs.map((s) => ({ kind: 'item' as const, slug: s }));
     }
-    const hitItem = (it: Item) => (it.name + ' ' + it.alias + ' ' + it.cat).toLowerCase().includes(query);
-    const itemRows: Row[] = items.filter(hitItem).map((it) => ({ kind: 'item', slug: it.slug }));
-    const spaceRows: Row[] = scenes.filter((sc) =>
-      (sc.name + ' ' + sc.parent).toLowerCase().includes(query),
-    ).map((sc) => ({ kind: 'space', slug: sc.slug }));
+    const itemRows: Row[] = (res?.items ?? []).map((it) => ({ kind: 'item', slug: it.slug }));
+    const spaceRows: Row[] = (res?.spaces ?? []).map((sp) => ({ kind: 'space', slug: String(sp.id) }));
     return [...itemRows, ...spaceRows];
-  }, [items, query, scenes]);
+  }, [query, res, items]);
 
-  useEffect(() => setSel(-1), [query]);
+  useEffect(() => setSel(-1), [query, mode]);
+
+  /* debounced search request (each keystroke cancels the previous) */
+  useEffect(() => {
+    if (!query) {
+      setRes(null);
+      setSearching(false);
+      return;
+    }
+    setSearching(true);
+    const seq = ++searchSeq.current;
+    const t = window.setTimeout(async () => {
+      try {
+        const r = await search(query, mode);
+        if (seq === searchSeq.current) setRes(r);
+      } finally {
+        if (seq === searchSeq.current) setSearching(false);
+      }
+    }, 150);
+    return () => window.clearTimeout(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [query, mode, search]);
 
   const moveSel = (d: number) => {
     if (!rows.length) return;
@@ -172,17 +197,17 @@ export default function Hub() {
         </button>
       );
     }
-    const sc = scenes.find((x) => x.slug === r.slug);
-    if (!sc) return null;
+    const node = dirById(tree, r.slug);
+    if (!node) return null;
     return (
       <button key={r.slug} type="button" className={`result-row${idx === sel ? ' sel' : ''}`} onClick={() => openSel(idx)}>
         <span className="rr-glyph" style={V({ ['--tc']: 'var(--accent)' })}>
-          <Icon name={TYPE_ICON[sc.type]} />
+          <Icon name={TYPE_ICON[node.type]} />
         </span>
         <span className="rr-main">
-          <span className="rr-name">{sc.name}</span>
+          <span className="rr-name">{node.name}</span>
           <span className="rr-sub">
-            <span className="t-xs">空间 · {sc.kids.length} 个子空间</span>
+            <span className="t-xs">空间 · {node.kids.length} 个子空间</span>
           </span>
         </span>
         <Icon name="chev" size={16} style={V({ color: 'var(--faint)', flex: 'none' })} />
@@ -210,7 +235,9 @@ export default function Hub() {
       </>
     );
   } else if (rows.length === 0) {
-    spotBody = (
+    spotBody = searching ? (
+      <p className="t-sm t-faint" style={{ padding: '12px 10px' }}>搜索中…</p>
+    ) : (
       <EmptyState
         icon="search"
         title={`没有找到「${q.trim()}」`}
@@ -444,6 +471,23 @@ export default function Hub() {
             />
             <Kbd>esc</Kbd>
           </div>
+          <div className="spot-mode" style={{ marginTop: 10 }}>
+            <Seg
+              fluid
+              value={mode}
+              onChange={(v) => {
+                setMode(v as SearchModeDTO);
+                setSel(-1);
+                setRes(null);
+              }}
+              options={[
+                { value: 'fuzzy', label: '模糊' },
+                { value: 'exact', label: '精确' },
+                { value: 'category', label: '类别' },
+                { value: 'existence', label: '存在' },
+              ]}
+            />
+          </div>
         </div>
         <div className="spot-body" style={{ paddingTop: 8 }}>
           {spotBody}
@@ -473,7 +517,7 @@ export default function Hub() {
       <ItemSheet item={item} open={itemOpen} onClose={closeItem} primary="locate" />
 
       <SettingsSheet open={settingsOpen} onClose={() => setSettingsOpen(false)} />
-      <ExistSheet open={existOpen} onClose={() => setExistOpen(false)} items={items} onOpenItem={openItem} />
+      <ExistSheet open={existOpen} onClose={() => setExistOpen(false)} onOpenItem={openItem} />
       <ToastsHost />
     </div>
   );
@@ -601,30 +645,47 @@ function SettingsSheet({ open, onClose }: { open: boolean; onClose: () => void }
 function ExistSheet({
   open,
   onClose,
-  items,
   onOpenItem,
 }: {
   open: boolean;
   onClose: () => void;
-  items: Item[];
   onOpenItem: (slug: string) => void;
 }) {
   const tree = useCatalog((s) => s.tree);
+  const search = useCatalog((s) => s.search);
   const [scope, setScope] = useState('all');
   const [q, setQ] = useState('');
+  const [hits, setHits] = useState<Item[]>([]);
+  const [searching, setSearching] = useState(false);
+  const seqRef = useRef(0);
 
   const query = q.trim().toLowerCase();
-  let hits: Item[] = [];
-  if (query) {
-    hits = items.filter((it) => {
-      const inScope =
-        scope === 'all' ||
-        (scope === 'study' || scope === 'bedroom'
-          ? countItemsIn(tree, [it], scope) > 0
-          : true);
-      return inScope && (it.name + ' ' + it.alias + ' ' + it.cat).toLowerCase().includes(query);
-    });
-  }
+  const scopeRoot =
+    scope === 'all'
+      ? undefined
+      : tree.find((n) => n.name === (scope === 'study' ? '书房' : '卧室'));
+  const scopeSpaceId = scopeRoot ? Number(scopeRoot.id) : undefined;
+
+  /* existence check via backend; stale responses are ignored by seq */
+  useEffect(() => {
+    if (!query) {
+      setHits([]);
+      setSearching(false);
+      return;
+    }
+    setSearching(true);
+    const seq = ++seqRef.current;
+    const t = window.setTimeout(async () => {
+      try {
+        const r = await search(query, 'existence', scopeSpaceId);
+        if (seq === seqRef.current) setHits(r.items);
+      } finally {
+        if (seq === seqRef.current) setSearching(false);
+      }
+    }, 150);
+    return () => window.clearTimeout(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [query, scopeSpaceId, search]);
 
   return (
     <Sheet open={open} onClose={onClose} side="bottom" title="确认这里有没有…" grab>
@@ -661,6 +722,8 @@ function ExistSheet({
       <div aria-live="polite">
         {!query ? (
           <p className="t-sm t-faint">输入名称后，这里会直接告诉你「在不在」。 </p>
+        ) : searching && hits.length === 0 ? (
+          <p className="t-sm t-faint">正在查看…</p>
         ) : hits.length ? (
           hits.slice(0, 4).map((it) => (
             <button key={it.slug} type="button" className="glass-card rec-suggest in" onClick={() => onOpenItem(it.slug)} style={{ width: '100%' }}>

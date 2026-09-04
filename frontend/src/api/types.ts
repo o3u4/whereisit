@@ -34,3 +34,19 @@ export interface LotDTO {
   alias: string;
   attrs: [string, string][];
 }
+
+/** a space node hit returned by search (flat, any depth) */
+export interface SpaceHitDTO {
+  id: number;
+  parent_id: number | null;
+  name: string;
+  type_tag: string;
+}
+
+export type SearchModeDTO = 'exact' | 'fuzzy' | 'category' | 'existence';
+
+export interface SearchResultDTO {
+  mode: SearchModeDTO;
+  items: LotDTO[];
+  spaces: SpaceHitDTO[];
+}

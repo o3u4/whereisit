@@ -6,7 +6,7 @@
 import type { Item, ItemStatus } from '../lib/types';
 import { spaceToDir } from '../lib/tree';
 import type { DirNode } from '../lib/types';
-import type { LotDTO, SpaceNodeDTO } from './types';
+import type { LotDTO, SearchModeDTO, SearchResultDTO, SpaceHitDTO, SpaceNodeDTO } from './types';
 
 const BASE = '/api';
 
@@ -106,4 +106,26 @@ export async function patchLot(
     merged: data.merged,
     removedId: data.removed_id === null ? null : String(data.removed_id),
   };
+}
+
+export interface SearchParams {
+  q: string;
+  mode?: SearchModeDTO;
+  scope_space_id?: number;
+  category_id?: number;
+}
+
+export interface SearchResult {
+  mode: SearchModeDTO;
+  items: Item[];
+  spaces: SpaceHitDTO[];
+}
+
+export async function search(p: SearchParams): Promise<SearchResult> {
+  const params = new URLSearchParams({ q: p.q });
+  if (p.mode) params.set('mode', p.mode);
+  if (p.scope_space_id != null) params.set('scope_space_id', String(p.scope_space_id));
+  if (p.category_id != null) params.set('category_id', String(p.category_id));
+  const data = await request<SearchResultDTO>('GET', `/search?${params.toString()}`);
+  return { mode: data.mode, items: data.items.map(lotToItem), spaces: data.spaces };
 }
