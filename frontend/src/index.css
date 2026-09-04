@@ -104,11 +104,10 @@ svg { display: block; }
 .tone-browse  { --t1: oklch(76% 0.07 200 / 0.5);  --t2: oklch(90% 0.05 85 / 0.55); --t3: oklch(80% 0.06 252 / 0.36); --t4: oklch(84% 0.05 172 / 0.4); }
 .tone-record  { --t1: oklch(86% 0.06 62 / 0.55);  --t2: oklch(80% 0.08 175 / 0.42); --t3: oklch(78% 0.05 250 / 0.34); --t4: oklch(92% 0.05 30 / 0.4); }
 
-.blob.b1 { left: -12vw; top: -18vh; width: 56vmax; height: 56vmax; background: radial-gradient(circle at 38% 42%, var(--t1), transparent 66%); animation: drift 46s var(--ease-spring) infinite alternate; }
-.blob.b2 { right: -16vw; top: -12vh; width: 48vmax; height: 48vmax; background: radial-gradient(circle at 52% 44%, var(--t2), transparent 64%); animation: drift 58s var(--ease-spring) infinite alternate-reverse; }
-.blob.b3 { left: 28vw; bottom: -20vh; width: 60vmax; height: 60vmax; background: radial-gradient(circle at 50% 50%, var(--t3), transparent 66%); animation: drift 52s var(--ease-spring) infinite alternate; }
-.blob.b4 { right: 22vw; bottom: -18vh; width: 44vmax; height: 44vmax; background: radial-gradient(circle at 50% 50%, var(--t4), transparent 62%); animation: drift 64s var(--ease-spring) infinite alternate-reverse; }
-@keyframes drift { 0% { transform: translate3d(0,0,0); } 100% { transform: translate3d(-3vmax,4vmax,0); } }
+.blob.b1 { left: -12vw; top: -18vh; width: 56vmax; height: 56vmax; background: radial-gradient(circle at 38% 42%, var(--t1), transparent 72%); }
+.blob.b2 { right: -16vw; top: -12vh; width: 48vmax; height: 48vmax; background: radial-gradient(circle at 52% 44%, var(--t2), transparent 70%); }
+.blob.b3 { left: 28vw; bottom: -20vh; width: 60vmax; height: 60vmax; background: radial-gradient(circle at 50% 50%, var(--t3), transparent 72%); }
+.blob.b4 { right: 22vw; bottom: -18vh; width: 44vmax; height: 44vmax; background: radial-gradient(circle at 50% 50%, var(--t4), transparent 70%); }
 
 /* ------------------------------------------------ glass materials ------- */
 .glass {
