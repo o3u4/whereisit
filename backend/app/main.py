@@ -8,6 +8,7 @@ from fastapi.responses import JSONResponse
 from app.core.errors import ApiError
 from app.db import migrations
 from app.domains.items.router import router as items_router
+from app.domains.search.router import router as search_router
 from app.domains.spaces.router import router as spaces_router
 
 
@@ -21,6 +22,7 @@ app = FastAPI(title="whereisit", version="0.1.0", lifespan=lifespan)
 
 app.include_router(spaces_router)
 app.include_router(items_router)
+app.include_router(search_router)
 
 
 @app.exception_handler(ApiError)

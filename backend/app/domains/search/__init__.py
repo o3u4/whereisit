@@ -1,0 +1,1 @@
+# search domain: SearchProvider seam + FTS/trigram + LIKE fallback across all modes
