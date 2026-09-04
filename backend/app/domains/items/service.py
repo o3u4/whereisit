@@ -98,6 +98,20 @@ def _present_lot(conn: sqlite3.Connection, def_id: int, space_id: int) -> Option
     return dict(row) if row else None
 
 
+def remove(conn: sqlite3.Connection, *, lot_id: int) -> dict:
+    """Delete a single presence (lot) and its lot-level attrs.
+
+    The def/aliases/category persist even if this was the lot's last presence —
+    a def without a presence is just an item type with nowhere. attrs has no FK
+    on entity_id, so lot attrs are cleaned manually (mirror of spaces delete)."""
+    require_lot(conn, lot_id)
+    conn.execute(
+        "DELETE FROM attrs WHERE entity_type = 'lot' AND entity_id = ?", (lot_id,)
+    )
+    conn.execute("DELETE FROM item_lots WHERE id = ?", (lot_id,))
+    return {"removed_id": lot_id}
+
+
 def lot_out(conn: sqlite3.Connection, lot_id: int) -> dict:
     row = conn.execute(_ITEM_LOT_OUT, (lot_id,)).fetchone()
     if row is None:

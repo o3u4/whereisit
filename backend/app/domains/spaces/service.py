@@ -152,7 +152,7 @@ def delete(conn: sqlite3.Connection, space_id: int, *, mode: str = "cascade") ->
         for sid in removed:  # deepest-first order avoids spaces.parent_id FK violations
             conn.execute("DELETE FROM spaces WHERE id = ?", (sid,))
 
-    return {"deleted": space_id, "removed_ids": removed}
+    return {"deleted": space_id, "removed_ids": removed, "removed_lots": len(lot_ids)}
 
 
 def _build_forest(rows: list[dict], roots: list[int]) -> list[dict]:

@@ -46,3 +46,9 @@ def patch_lot(lot_id: int, payload: PatchIn) -> dict:
                 space_id=payload.space_id,
             )
         )
+
+
+@router.delete("/lots/{lot_id}", response_model=dict)
+def delete_lot(lot_id: int) -> dict:
+    with tx() as conn:
+        return ok(service.remove(conn, lot_id=lot_id))
