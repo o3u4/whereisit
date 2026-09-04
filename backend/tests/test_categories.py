@@ -95,3 +95,19 @@ def test_delete_reassigns_items_into_destination(client):
     item = client.get("/api/items").json()["data"][0]
     assert item["category"] == "收纳类"
     assert from_cat["id"] not in [c["id"] for c in _cats(client)]
+
+
+def test_set_def_category(client):
+    s = _space(client, "柜戊")
+    d = client.post(
+        "/api/items/register", json={"name": "螺丝批", "space_id": s["id"], "category": "工具皕"}
+    ).json()["data"]["lot"]
+    target = _make_cat(client, "五金皕")
+
+    r = client.patch(f"/api/items/defs/{d['def_id']}", json={"category_id": target["id"]})
+    assert r.status_code == 200, r.text
+    item = client.get("/api/items").json()["data"][0]
+    assert item["category"] == "五金皕"
+    # empty body -> 400; missing category -> 404
+    assert client.patch(f"/api/items/defs/{d['def_id']}", json={}).status_code == 400
+    assert client.patch(f"/api/items/defs/{d['def_id']}", json={"category_id": 999_999}).status_code == 404

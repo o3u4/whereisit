@@ -17,6 +17,7 @@ class RegisterIn(BaseModel):
     alias: Optional[str] = Field(default=None, max_length=500)
     category: Optional[str] = Field(default=None, max_length=100)
     unit: Optional[str] = Field(default=None, max_length=20)
+    notes: Optional[str] = Field(default=None, max_length=2000)
     qty: int = 1
     status: ItemStatus = "present"
     space_id: int
@@ -27,7 +28,12 @@ class PatchIn(BaseModel):
     qty: Optional[int] = None
     status: Optional[ItemStatus] = None
     space_id: Optional[int] = None
+    notes: Optional[str] = Field(default=None, max_length=2000)
 
 
 class MergeDefsIn(BaseModel):
     from_id: int
+
+
+class DefPatchIn(BaseModel):
+    category_id: Optional[int] = None

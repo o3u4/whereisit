@@ -201,3 +201,12 @@ def test_patch_errors(client):
 
     r = client.patch(f"/api/items/lots/{lot['lot_id']}", json={"space_id": 999_999})
     assert r.status_code == 404
+
+
+def test_register_and_patch_notes(client):
+    s = _space(client, "柜戊")
+    d = _register(client, "便签乙", s["id"], notes="给小明")
+    assert d["lot"]["notes"] == "给小明"
+    r = client.patch(f"/api/items/lots/{d['lot']['lot_id']}", json={"notes": "换备注了"})
+    assert r.status_code == 200, r.text
+    assert r.json()["data"]["lot"]["notes"] == "换备注了"

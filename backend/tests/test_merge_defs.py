@@ -83,3 +83,25 @@ def test_merge_into_itself_400(client):
     keep = _reg(client, "丁件", s["id"])
     r = client.post(f"/api/items/defs/{keep['def_id']}/merge", json={"from_id": keep["def_id"]})
     assert r.status_code == 400
+
+
+def test_merge_coalesces_present_in_same_space(client):
+    s = _space(client, "格戊")
+    keep = _reg(client, "戊件", s["id"], qty=3)
+    src = _reg(client, "戊异名", s["id"], qty=2)  # different def, same space
+    data = _merge(client, keep["def_id"], src["def_id"])
+    assert data["coalesced"] == 1
+    items = _items(client)
+    assert len(items) == 1
+    assert items[0]["name"] == "戊件" and items[0]["qty"] == 5
+
+
+def test_merge_keeps_different_spaces_separate(client):
+    s1 = _space(client, "格己一")
+    s2 = _space(client, "格己二")
+    keep = _reg(client, "己件", s1["id"], qty=2)
+    src = _reg(client, "己异名", s2["id"], qty=4)
+    _merge(client, keep["def_id"], src["def_id"])
+    items = _items(client)
+    assert len(items) == 2
+    assert {i["qty"] for i in items} == {2, 4}

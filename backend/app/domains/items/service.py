@@ -6,13 +6,14 @@ from typing import Optional
 
 from app.core.errors import BadRequest, NotFound
 from app.core.normalize import norm_text
+from app.domains.categories import service as cat_service
 from app.domains.spaces.service import require as require_space
 
 _ALIAS_SPLIT = re.compile(r"[，,;；、|]+")
 
 _ITEM_LOT_OUT = """
 SELECT l.id AS lot_id, l.def_id, l.space_id, l.qty, l.status,
-       l.captured_at, l.created_at, l.updated_at,
+       l.captured_at, l.created_at, l.updated_at, l.notes,
        d.name AS name, d.unit AS unit, c.name AS category
 FROM item_lots l
 JOIN item_defs d ON d.id = l.def_id
@@ -134,6 +135,37 @@ def merge_defs(conn: sqlite3.Connection, *, keep_id: int, from_id: int) -> dict:
     cur = conn.execute("UPDATE item_lots SET def_id = ? WHERE def_id = ?", (keep_id, from_id))
     lots_moved = cur.rowcount
 
+    # After re-pointing, the keep def may now hold multiple present lots in the
+    # same space (from + keep). Coalesce them: sum qty into the lowest-id row and
+    # drop the extras, so a merge "adds quantity" where the same item is duplicated
+    # in one place; different places stay separate (multi-location is expected).
+    coalesced = 0
+    for space_id in {
+        r["space_id"]
+        for r in conn.execute(
+            "SELECT space_id FROM item_lots WHERE def_id = ? AND status = 'present'",
+            (keep_id,),
+        ).fetchall()
+    }:
+        rows = conn.execute(
+            "SELECT id, qty FROM item_lots WHERE def_id = ? AND space_id = ? "
+            "AND status = 'present' ORDER BY id",
+            (keep_id, space_id),
+        ).fetchall()
+        if len(rows) > 1:
+            target = rows[0]
+            for extra in rows[1:]:
+                conn.execute(
+                    "UPDATE item_lots SET qty = qty + ? WHERE id = ?",
+                    (extra["qty"], target["id"]),
+                )
+                conn.execute("DELETE FROM item_lots WHERE id = ?", (extra["id"],))
+                conn.execute(
+                    "DELETE FROM attrs WHERE entity_type = 'lot' AND entity_id = ?",
+                    (extra["id"],),
+                )
+                coalesced += 1
+
     aliases_added = 0
     for a in conn.execute(
         "SELECT name, name_norm FROM item_aliases WHERE def_id = ?", (from_id,)
@@ -181,7 +213,18 @@ def merge_defs(conn: sqlite3.Connection, *, keep_id: int, from_id: int) -> dict:
         "lots_moved": lots_moved,
         "aliases_added": aliases_added,
         "attrs_added": attrs_added,
+        "coalesced": coalesced,
     }
+
+
+def set_category(conn: sqlite3.Connection, *, def_id: int, category_id: Optional[int]) -> dict:
+    """Move an item type (def) under a different category (def-level)."""
+    if category_id is None:
+        raise BadRequest("category_id required")
+    require_def(conn, def_id)
+    cat_service.require(conn, category_id)
+    conn.execute("UPDATE item_defs SET category_id = ? WHERE id = ?", (category_id, def_id))
+    return {"def_id": def_id, "category_id": category_id}
 
 
 def lot_out(conn: sqlite3.Connection, lot_id: int) -> dict:
@@ -217,6 +260,7 @@ def register(
     alias: Optional[str] = None,
     category: Optional[str] = None,
     unit: Optional[str] = None,
+    notes: Optional[str] = None,
     attrs: Optional[list[tuple[str, str]]] = None,
 ) -> dict:
     if qty < 1:
@@ -240,8 +284,8 @@ def register(
             return {"lot": lot_out(conn, lot["id"]), "merged": True}
 
     cur = conn.execute(
-        "INSERT INTO item_lots (def_id, space_id, qty, status) VALUES (?, ?, ?, ?)",
-        (def_id, space_id, qty, status),
+        "INSERT INTO item_lots (def_id, space_id, qty, status, notes) VALUES (?, ?, ?, ?, ?)",
+        (def_id, space_id, qty, status, notes),
     )
     return {"lot": lot_out(conn, int(cur.lastrowid)), "merged": False}
 
@@ -253,8 +297,9 @@ def patch(
     qty: Optional[int] = None,
     status: Optional[str] = None,
     space_id: Optional[int] = None,
+    notes: Optional[str] = None,
 ) -> dict:
-    if qty is None and status is None and space_id is None:
+    if qty is None and status is None and space_id is None and notes is None:
         raise BadRequest("nothing to update")
     if qty is not None and qty < 1:
         raise BadRequest("qty must be >= 1")
@@ -295,6 +340,9 @@ def patch(
     if status is not None:
         sets.append("status = ?")
         params.append(status)
+    if notes is not None:
+        sets.append("notes = ?")
+        params.append(notes)
     if sets:
         sets.append("updated_at = datetime('now')")
         params.append(lot_id)
