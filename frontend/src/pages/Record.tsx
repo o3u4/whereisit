@@ -39,22 +39,52 @@ export default function Record() {
   const items = useCatalog((s) => s.items);
   const tree = useCatalog((s) => s.tree);
   const categories = useCatalog((s) => s.categories);
+  const addCategory = useCatalog((s) => s.addCategory);
   const ready = useCatalog((s) => s.ready);
   const addItem = useCatalog((s) => s.addItem);
   const commit = useCatalog((s) => s.commit);
   const pushRecent = useCatalog((s) => s.pushRecent);
   const setReveal = useCatalog((s) => s.setReveal);
 
-  /* category choices: real categories when present, else the four demo ones */
-  const catChoices =
+  /* category picker: frequent ones always visible, rest under an expand, + add-new */
+  const demoChoices = KNOWN_CAT_LABELS.map((n) => ({ id: n, name: n }));
+  const freq =
     categories.length > 0
-      ? categories.map((c) => ({ id: c.id, name: c.name }))
-      : KNOWN_CAT_LABELS.map((n) => ({ id: n, name: n }));
+      ? [...categories].sort((a, b) => b.itemCount - a.itemCount).slice(0, 4)
+      : demoChoices;
+  const freqNames = new Set(freq.map((c) => c.name));
+  const others = categories.length > 0 ? categories.filter((c) => !freqNames.has(c.name)) : [];
+
+  const catChip = (id: number | string, name: string) => (
+    <button
+      key={id}
+      type="button"
+      className={`rec-cat${cat === name ? ' rec-cat--on' : ''}`}
+      aria-pressed={cat === name}
+      onClick={() => setCat(name)}
+      style={V({ ['--tc']: catMeta(name).tint })}
+    >
+      <Icon name={catMeta(name).icon} />
+      {name}
+    </button>
+  );
+
+  const addNewCat = async () => {
+    const n = newCatName.trim();
+    if (!n) return;
+    if (await addCategory(n)) {
+      toast(`已新增分类「${n}」`);
+      setCat(n);
+      setNewCatName('');
+    }
+  };
 
   const [mode, setMode] = useState<Mode>('A');
   const [slug, setSlug] = useState<string | null>(null);
   const [pickOpen, setPickOpen] = useState(false);
   const [done, setDone] = useState(false);
+  const [catExpanded, setCatExpanded] = useState(false);
+  const [newCatName, setNewCatName] = useState('');
 
   /* fields (A name/alias live under their own inputs; qty/unit/status/spot shared) */
   const [aName, setAName] = useState('');
@@ -389,23 +419,46 @@ export default function Record() {
       </div>
 
       <div className="glass-card panel rec-card">
-        <span className="field-label">
-          类别 <span className="hint">必填</span>
-        </span>
-        <div className="rec-cats">
-          {catChoices.map((c) => (
+        <div className="between">
+          <span className="field-label" style={{ margin: 0 }}>
+            类别 <span className="hint">必填</span>
+          </span>
+          {others.length > 0 ? (
             <button
-              key={c.id}
               type="button"
-              className={`rec-cat${cat === c.name ? ' rec-cat--on' : ''}`}
-              aria-pressed={cat === c.name}
-              onClick={() => setCat(c.name)}
-              style={V({ ['--tc']: catMeta(c.name).tint })}
+              className="btn--text t-sm"
+              aria-expanded={catExpanded}
+              onClick={() => setCatExpanded((v) => !v)}
             >
-              <Icon name={catMeta(c.name).icon} />
-              {c.name}
+              {catExpanded ? '收起' : `全部类别 (${others.length})`}
             </button>
-          ))}
+          ) : null}
+        </div>
+        <div className="rec-cats">{freq.map((c) => catChip(c.id, c.name))}</div>
+        {catExpanded && others.length > 0 ? (
+          <div className="rec-cats" style={{ marginTop: 9 }}>
+            {others.map((c) => catChip(c.id, c.name))}
+          </div>
+        ) : null}
+        <div className="rec-addrow">
+          <input
+            className="field"
+            placeholder="新类别名称 · 回车新增"
+            maxLength={12}
+            value={newCatName}
+            onChange={(e) => setNewCatName(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') void addNewCat();
+            }}
+          />
+          <button
+            type="button"
+            className="btn btn--soft btn--sm"
+            disabled={!newCatName.trim()}
+            onClick={() => void addNewCat()}
+          >
+            ＋ 新增
+          </button>
         </div>
       </div>
 

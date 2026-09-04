@@ -52,6 +52,8 @@ export interface Item {
   attrs: [string, string][];
   /** String(space id) this lot currently sits in */
   spot: string;
+  /** lot-level note */
+  notes: string;
 }
 
 export interface RecentEntry {

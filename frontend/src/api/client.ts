@@ -55,6 +55,7 @@ function lotToItem(lot: LotDTO): Item {
     status: lot.status as ItemStatus,
     attrs: (lot.attrs ?? []).map((a) => [a[0], a[1]] as [string, string]),
     spot: String(lot.space_id),
+    notes: lot.notes ?? '',
   };
 }
 
@@ -73,6 +74,7 @@ export interface RegisterPayload {
   alias?: string;
   category?: string;
   unit?: string;
+  notes?: string;
   qty: number;
   status: ItemStatus;
   space_id: number;
@@ -84,6 +86,7 @@ export async function registerItem(payload: RegisterPayload): Promise<{ item: It
     alias: payload.alias,
     category: payload.category,
     unit: payload.unit,
+    notes: payload.notes,
     qty: payload.qty,
     status: payload.status,
     space_id: payload.space_id,
@@ -99,6 +102,7 @@ export interface PatchFields {
   qty?: number;
   status?: ItemStatus;
   space_id?: number;
+  notes?: string;
 }
 
 export async function patchLot(
@@ -168,6 +172,13 @@ export interface MergeDefsResult {
 
 export async function mergeDefs(keepId: number, fromId: number): Promise<MergeDefsResult> {
   return request<MergeDefsResult>('POST', `/items/defs/${keepId}/merge`, { from_id: fromId });
+}
+
+export async function patchDefCategory(
+  defId: number,
+  categoryId: number,
+): Promise<{ def_id: number; category_id: number }> {
+  return request('PATCH', `/items/defs/${defId}`, { category_id: categoryId });
 }
 
 export async function search(p: SearchParams): Promise<SearchResult> {

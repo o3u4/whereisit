@@ -33,6 +33,7 @@ export interface LotDTO {
   /** first stored alias, '' when none */
   alias: string;
   attrs: [string, string][];
+  notes: string | null;
 }
 
 /** a space node hit returned by search (flat, any depth) */

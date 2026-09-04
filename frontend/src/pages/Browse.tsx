@@ -14,6 +14,7 @@ import { Icon, TYPE_ICON } from '../components/icons';
 import { Wordmark, Seg, StatusBadge, ToastsHost } from '../components/ui';
 import { TabBar, TabLink } from '../components/TabBar';
 import { ItemSheet } from '../components/ItemSheet';
+import { MergeSheet } from '../components/MergeSheet';
 import { catMeta, STATUS, TYPE_TINT } from '../lib/meta';
 import { chainOf, countItemsIn, dirById, directItemsIn, pathNames } from '../lib/tree';
 import type { DirNode, Item } from '../lib/types';
@@ -36,6 +37,7 @@ export default function Browse() {
   const setReveal = useCatalog((s) => s.setReveal);
   const moveItem = useCatalog((s) => s.moveItem);
   const moveDir = useCatalog((s) => s.moveDir);
+  const mergeDefs = useCatalog((s) => s.mergeDefs);
 
   const atParam = search.get('at');
   const [cur, setCur] = useState<string | null>(() =>
@@ -46,6 +48,8 @@ export default function Browse() {
   const [itemSlug, setItemSlug] = useState<string | null>(null);
   const [dragId, setDragId] = useState<Drag | null>(null);
   const [over, setOver] = useState<string | null>(null);
+  const [overItem, setOverItem] = useState<string | null>(null);
+  const [mergeOpen, setMergeOpen] = useState(false);
   const dragRef = useRef<Drag | null>(null);
 
   /* URL drives the current container (keeps back/forward + reveal coherent) */
@@ -123,6 +127,7 @@ export default function Browse() {
       dragRef.current = null;
       setDragId(null);
       setOver(null);
+      setOverItem(null);
     },
   });
 
@@ -138,6 +143,7 @@ export default function Browse() {
       dragRef.current = null;
       setDragId(null);
       setOver(null);
+      setOverItem(null);
     },
   });
 
@@ -157,6 +163,45 @@ export default function Browse() {
       setExpanded((e) => ({ ...e, [targetId]: true }));
     }
   };
+
+  /* drop an item row onto another row = merge the two defs (different defs only) */
+  const mergeOk = (d: Drag | null, t: Item): d is Drag =>
+    !!d && d.kind === 'item' && d.id !== t.slug && (() => {
+      const src = itemOf(d.id);
+      return !!src && src.defId !== t.defId;
+    })();
+
+  const mergeDropH = (t: Item) => ({
+    onDragOver: (e: DragEvent<HTMLElement>) => {
+      if (mergeOk(dragRef.current, t)) {
+        e.preventDefault();
+        e.dataTransfer.dropEffect = 'move';
+        if (overItem !== t.slug) setOverItem(t.slug);
+      }
+    },
+    onDragLeave: () => {
+      if (overItem === t.slug) setOverItem(null);
+    },
+    onDrop: (e: DragEvent<HTMLElement>) => {
+      const d = dragRef.current;
+      const ok = mergeOk(d, t);
+      if (ok) {
+        e.preventDefault();
+        const src = itemOf(d.id);
+        if (src) {
+          void (async () => {
+            if (await mergeDefs(t.defId, src.defId)) {
+              toast(`已把「${src.name}」并入「${t.name}」· 同位置数量相加`);
+            }
+          })();
+        }
+      }
+      dragRef.current = null;
+      setDragId(null);
+      setOver(null);
+      setOverItem(null);
+    },
+  });
 
   /* -------- small render helpers ---------------------------------------- */
   const stBadge = (it: Item) => <StatusBadge cls={it.status} label={STATUS[it.status].label} />;
@@ -324,8 +369,9 @@ export default function Browse() {
             <div className="rowline brw-itemrow" key={it.slug}>
               <button
                 type="button"
-                className={`glass-card item-row grow${dragId?.kind === 'item' && dragId.id === it.slug ? ' dragging' : ''}`}
+                className={`glass-card item-row grow${dragId?.kind === 'item' && dragId.id === it.slug ? ' dragging' : ''}${overItem === it.slug ? ' drop' : ''}`}
                 {...dragSrc('item', it.slug)}
+                {...mergeDropH(it)}
                 onClick={() => openItem(it.slug)}
                 onKeyDown={(e) => {
                   if (e.key === 'Enter' || e.key === ' ') {
@@ -472,6 +518,10 @@ export default function Browse() {
                 <Icon name="search" size={14} />
                 去中枢搜
               </Link>
+              <button type="button" className="chip chip--glass" onClick={() => setMergeOpen(true)}>
+                <Icon name="merge" size={14} />
+                合并同类
+              </button>
               <Link className="btn btn--primary btn--sm" to="/record">
                 <Icon name="plus" size={16} />
                 登记
@@ -483,7 +533,9 @@ export default function Browse() {
             <section className="page-lead in d1">
               <p className="section-kicker">空间目录 · BROWSE</p>
               <h1 className="lead-title">容器即路径。点进去，一路下钻。</h1>
-              <p className="lead-sub">等宽路径随时回跳；把一张卡片拖进另一个容器，就是「挪动」。</p>
+              <p className="lead-sub">
+                把一张卡片拖进另一个容器 = 挪动；拖到另一件物品上 = 合并同类。
+              </p>
             </section>
 
             <div className="brw-cols in d2">
@@ -525,6 +577,7 @@ export default function Browse() {
       </div>
 
       <ItemSheet item={item} open={item !== null} onClose={() => setItemSlug(null)} primary="move" />
+      <MergeSheet open={mergeOpen} onClose={() => setMergeOpen(false)} />
 
       <ToastsHost />
     </div>

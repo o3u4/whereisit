@@ -38,7 +38,6 @@ export default function Hub() {
   const [existOpen, setExistOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [catOpen, setCatOpen] = useState(false);
-  const [mergeOpen, setMergeOpen] = useState(false);
   const [q, setQ] = useState('');
   const [sel, setSel] = useState(-1);
   const [mode, setMode] = useState<SearchModeDTO>('fuzzy');
@@ -525,13 +524,8 @@ export default function Hub() {
           setSettingsOpen(false);
           setCatOpen(true);
         }}
-        onMergeDefs={() => {
-          setSettingsOpen(false);
-          setMergeOpen(true);
-        }}
       />
       <CategorySheet open={catOpen} onClose={() => setCatOpen(false)} />
-      <MergeDefsSheet open={mergeOpen} onClose={() => setMergeOpen(false)} />
       <ExistSheet open={existOpen} onClose={() => setExistOpen(false)} onOpenItem={openItem} />
       <ToastsHost />
     </div>
@@ -553,12 +547,10 @@ function SettingsSheet({
   open,
   onClose,
   onManageCategories,
-  onMergeDefs,
 }: {
   open: boolean;
   onClose: () => void;
   onManageCategories: () => void;
-  onMergeDefs: () => void;
 }) {
   const toast = useToast((s) => s.push);
   const [lang, setLang] = useState('zh');
@@ -633,9 +625,6 @@ function SettingsSheet({
         <div className="rowline gap8">
           <button type="button" className="btn btn--soft btn--sm" onClick={onManageCategories}>
             分类管理
-          </button>
-          <button type="button" className="btn btn--soft btn--sm" onClick={onMergeDefs}>
-            合并重复物品
           </button>
         </div>
       </div>
@@ -922,64 +911,6 @@ function CategorySheet({ open, onClose }: { open: boolean; onClose: () => void }
         {categories.length === 0 ? (
           <p className="t-sm t-faint">还没有分类。登记时会自动创建；也可以在这里新增。</p>
         ) : null}
-      </div>
-    </Sheet>
-  );
-}
-
-/* ------------------------------------------------ merge duplicates -------- */
-function MergeDefsSheet({ open, onClose }: { open: boolean; onClose: () => void }) {
-  const items = useCatalog((s) => s.items);
-  const mergeDefs = useCatalog((s) => s.mergeDefs);
-  const toast = useToast((s) => s.push);
-  const [keepId, setKeepId] = useState<number | null>(null);
-
-  const defs = useMemo(() => {
-    const map = new Map<number, { defId: number; name: string; count: number }>();
-    for (const it of items) {
-      const g = map.get(it.defId);
-      if (g) g.count += 1;
-      else map.set(it.defId, { defId: it.defId, name: it.name, count: 1 });
-    }
-    return [...map.values()].sort(
-      (a, b) => b.count - a.count || a.name.localeCompare(b.name, 'zh'),
-    );
-  }, [items]);
-
-  const doMerge = async (fromId: number) => {
-    if (keepId == null) return;
-    const keep = defs.find((d) => d.defId === keepId);
-    if (await mergeDefs(keepId, fromId)) toast(`已并入「${keep?.name ?? ''}」`);
-  };
-
-  return (
-    <Sheet open={open} onClose={onClose} side="bottom" title="合并重复物品" grab>
-      <p className="t-sm t-faint">先点一下「设为保留」选目标；其余条目可「并入」它。合并不可撤销。</p>
-      <div className="col gap6">
-        {defs.map((d) => {
-          const isKeep = d.defId === keepId;
-          return (
-            <div key={d.defId} className="glass-card panel" style={{ padding: 10, display: 'flex', alignItems: 'center', gap: 8 }}>
-              <button
-                type="button"
-                className="btn btn--soft btn--sm"
-                disabled={isKeep}
-                onClick={() => setKeepId(d.defId)}
-                style={isKeep ? { background: 'var(--accent)', color: '#fff' } : undefined}
-              >
-                {isKeep ? '保留' : '设为保留'}
-              </button>
-              <span className="grow ellip">{d.name}</span>
-              <span className="tag tag--type" style={V({ ['--tc']: 'var(--muted)' })}>{d.count} 件</span>
-              {keepId != null && !isKeep ? (
-                <button type="button" className="btn btn--danger btn--sm" onClick={() => void doMerge(d.defId)}>
-                  并入
-                </button>
-              ) : null}
-            </div>
-          );
-        })}
-        {defs.length === 0 ? <p className="t-sm t-faint">还没有可合并的物品。</p> : null}
       </div>
     </Sheet>
   );

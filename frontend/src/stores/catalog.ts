@@ -21,12 +21,14 @@ export interface AddItemInput {
   cat: string;
   status?: ItemStatus;
   spot: string;
+  notes?: string;
 }
 
 export interface CommitFields {
   spot?: string;
   qty?: number;
   status?: ItemStatus;
+  notes?: string;
 }
 
 export interface CommitResult {
@@ -67,6 +69,10 @@ interface CatalogState {
   search: (q: string, mode?: SearchModeDTO, scopeSpaceId?: number) => Promise<api.SearchResult>;
   /** delete a presence (lot); resolves true on success */
   deleteItem: (slug: string) => Promise<boolean>;
+  /** edit a presence's note (lot-level) */
+  setNotes: (slug: string, notes: string) => Promise<void>;
+  /** move an item type (def) to a different category (def-level) */
+  changeCategory: (defId: number, categoryId: number) => Promise<boolean>;
   /** revert the last reversible mutation; true if something was undone */
   undo: () => Promise<boolean>;
   /** fold one def's presences/aliases/attrs into another (no undo) */
@@ -179,6 +185,30 @@ export const useCatalog = create<CatalogState>((set, get) => {
         }
       }),
 
+    setNotes: (slug, notes) =>
+      enqueue(async () => {
+        try {
+          const cur = get().items.find((i) => i.slug === slug);
+          await api.patchLot(Number(slug), { notes });
+          await refreshItems();
+          if (cur) set({ undoInfo: { kind: 'patch', slug, prev: { notes: cur.notes } } });
+        } catch (e) {
+          set({ error: errText(e) });
+        }
+      }),
+
+    changeCategory: (defId, categoryId) =>
+      enqueue(async () => {
+        try {
+          await api.patchDefCategory(defId, categoryId);
+          await refreshItems();
+          return true;
+        } catch (e) {
+          set({ error: errText(e) });
+          return false;
+        }
+      }),
+
     addItem: (input) =>
       enqueue(async () => {
         try {
@@ -187,6 +217,7 @@ export const useCatalog = create<CatalogState>((set, get) => {
             alias: input.alias || undefined,
             category: input.cat || undefined,
             unit: input.unit.trim() || undefined,
+            notes: input.notes || undefined,
             qty: Math.max(1, input.qty),
             status: input.status ?? 'present',
             space_id: Number(input.spot),
@@ -254,6 +285,7 @@ export const useCatalog = create<CatalogState>((set, get) => {
               alias: u.item.alias || undefined,
               category: u.item.cat || undefined,
               unit: u.item.unit || undefined,
+              notes: u.item.notes || undefined,
               qty: Math.max(1, u.item.qty),
               status: u.item.status,
               space_id: Number(u.item.spot),
@@ -265,6 +297,7 @@ export const useCatalog = create<CatalogState>((set, get) => {
             if (u.prev.spot !== undefined) patch.space_id = Number(u.prev.spot);
             if (u.prev.qty !== undefined) patch.qty = Math.max(1, u.prev.qty);
             if (u.prev.status !== undefined) patch.status = u.prev.status;
+            if (u.prev.notes !== undefined) patch.notes = u.prev.notes;
             if (Object.keys(patch).length) await api.patchLot(Number(u.slug), patch);
           }
           set({ items: await api.fetchItems(), error: null });

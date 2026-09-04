@@ -22,6 +22,7 @@ export type IconName =
   | 'image'
   | 'key'
   | 'locate'
+  | 'merge'
   | 'move'
   | 'plus'
   | 'room'
@@ -82,6 +83,13 @@ const BODIES: Record<IconName, ReactNode> = {
     </>
   ),
   move: <path d="M12 3v18M3 12h18M8 8l4-4 4 4M8 16l4 4 4-4" />,
+  merge: (
+    <>
+      <path d="m8 7 4-4 4 4" />
+      <path d="M12 3v6.5a3.5 3.5 0 0 0 1 2.5L20 19" />
+      <path d="M12 3v6.5a3.5 3.5 0 0 1-1 2.5L4 19" />
+    </>
+  ),
   plus: <path d="M12 5v14M5 12h14" />,
   room: <path d="M4 10.8 12 5l8 5.8M6 9.6V19h12V9.6M9 19v-5h6v5" />,
   scissor: (
