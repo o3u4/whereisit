@@ -65,6 +65,10 @@ export interface RecentEntry {
   /** breadcrumb-ish path text, e.g. 书房 / 书桌 / 左侧抽屉 */
   sub: string;
   time: string;
+  /** presence (lot) the action touched — reveal this after jumping */
+  slug?: string;
+  /** space id where it ended up — jump to /browse?at=<spot> */
+  spot?: string;
 }
 
 export interface Category {

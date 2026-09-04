@@ -309,7 +309,16 @@ export function ItemSheet({ item, open, onClose }: { item: Item | null; open: bo
               ) : null}
             </span>
             <span className="grow" />
-            <StatusBadge cls={item.status} label={item.status === 'present' ? '在' : item.status === 'lent' ? '借出' : '用完'} />
+            <button
+              type="button"
+              className="st-edit"
+              onClick={() => { closeEditors(); setStOpen(true); }}
+              aria-haspopup="dialog"
+              aria-label={`更改状态（当前：${STATUS[item.status].label}）`}
+            >
+              <StatusBadge cls={item.status} label={STATUS[item.status].label} />
+              <Icon name="chev" size={13} style={V({ flex: 'none', color: 'var(--faint)' })} />
+            </button>
           </div>
 
           <div className="brw-dl">
@@ -318,15 +327,6 @@ export function ItemSheet({ item, open, onClose }: { item: Item | null; open: bo
               <span className="v">
                 <button type="button" className="kv-edit" onClick={() => { closeEditors(); setMoveOpen(true); }}>
                   <span className="mono-path">{path}</span>
-                  <Icon name="chev" size={14} style={V({ flex: 'none', color: 'var(--faint)' })} />
-                </button>
-              </span>
-            </div>
-            <div className="kv">
-              <span className="k">状态</span>
-              <span className="v">
-                <button type="button" className="kv-edit" onClick={() => { closeEditors(); setStOpen(true); }}>
-                  <StatusBadge cls={item.status} label={STATUS[item.status].label} />
                   <Icon name="chev" size={14} style={V({ flex: 'none', color: 'var(--faint)' })} />
                 </button>
               </span>
@@ -353,9 +353,6 @@ export function ItemSheet({ item, open, onClose }: { item: Item | null; open: bo
                   {cat.label}
                   <Icon name="chev" size={12} style={V({ flex: 'none', color: 'var(--faint)' })} />
                 </button>
-                <span className="t-xs t-muted" style={{ marginLeft: 8 }}>
-                  同类一起生效
-                </span>
               </span>
             </div>
 

@@ -13,7 +13,7 @@ import { TabBar, TabLink, TabAction } from '../components/TabBar';
 import { ItemSheet } from '../components/ItemSheet';
 import { catMeta, TYPE_TINT } from '../lib/meta';
 import { countItemsIn, dirById, pathNames, scenesFromTree } from '../lib/tree';
-import type { Item, Scene } from '../lib/types';
+import type { DirNode, Item, RecentEntry, Scene } from '../lib/types';
 import type { SearchResult } from '../api/client';
 import type { SearchModeDTO } from '../api/types';
 import { useCatalog } from '../stores/catalog';
@@ -29,7 +29,18 @@ export default function Hub() {
   const tree = useCatalog((s) => s.tree);
   const recent = useCatalog((s) => s.recent);
   const search = useCatalog((s) => s.search);
+  const setReveal = useCatalog((s) => s.setReveal);
   const toast = useToast((s) => s.push);
+
+  /* recent handling row → jump to that item's spot in browse & open its detail */
+  const openRecent = (r: RecentEntry) => {
+    if (r.slug && r.spot) {
+      setReveal(r.slug);
+      navigate(`/browse?at=${r.spot}`);
+    } else {
+      toast(`正在定位到「${r.name}」`);
+    }
+  };
 
   const [spotOpen, setSpotOpen] = useState(false);
   const [itemSlug, setItemSlug] = useState<string | null>(null);
@@ -291,8 +302,8 @@ export default function Hub() {
           <main>
             <section className="hero in d1">
               <p className="section-kicker">中枢 · SPOTLIGHT</p>
-              <h1>问一句，东西在哪。</h1>
-              <p className="lead">输入物品、空间或类别，路径自动给出；拿不准再进「目录」慢慢逛。</p>
+              <h1>东西在哪？</h1>
+              <p className="lead">输入名称、空间或类别，一步直达。</p>
               <button type="button" className="hero-search" aria-haspopup="dialog" onClick={() => openSpot()}>
                 <Icon name="search" className="mag" />
                 <span className="ph">找「HDMI 线」「书房」… 或一个类别</span>
@@ -348,7 +359,7 @@ export default function Hub() {
                       key={r.id}
                       type="button"
                       className="glass-card item-row hover-lift"
-                      onClick={() => toast(`正在定位到「${r.name}」`)}
+                      onClick={() => openRecent(r)}
                     >
                       <span className="glyph" style={V({ ['--tc']: 'var(--accent)' })}>
                         <Icon name={r.icon as IconName} />
@@ -379,7 +390,7 @@ export default function Hub() {
                       场景目录
                     </h2>
                     <p className="t-sm t-muted mt8">
-                      每个空间都是一层「路径」。点卡片进入；点卡里的子空间胶囊，直接跳进那一格。
+                      点卡片进入；点子空间胶囊直达那一层。
                     </p>
                   </div>
                   <Link className="link" to="/browse">
@@ -679,18 +690,27 @@ function ExistSheet({
 }) {
   const tree = useCatalog((s) => s.tree);
   const search = useCatalog((s) => s.search);
-  const [scope, setScope] = useState('all');
+  const [scopeId, setScopeId] = useState(''); // '' = everywhere; else a space node id
   const [q, setQ] = useState('');
   const [hits, setHits] = useState<Item[]>([]);
   const [searching, setSearching] = useState(false);
   const seqRef = useRef(0);
 
   const query = q.trim().toLowerCase();
-  const scopeRoot =
-    scope === 'all'
-      ? undefined
-      : tree.find((n) => n.name === (scope === 'study' ? '书房' : '卧室'));
-  const scopeSpaceId = scopeRoot ? Number(scopeRoot.id) : undefined;
+  /* every existing space at any depth, as "~/ a / b" — pick a middle layer too */
+  const spaces = useMemo(() => {
+    const out: { id: string; label: string }[] = [];
+    const walk = (nodes: DirNode[], path: string[]) => {
+      for (const n of nodes) {
+        const p = [...path, n.name];
+        out.push({ id: n.id, label: p.join(' / ') });
+        walk(n.kids, p);
+      }
+    };
+    walk(tree, []);
+    return out;
+  }, [tree]);
+  const scopeSpaceId = scopeId === '' ? undefined : Number(scopeId);
 
   /* existence check via backend; stale responses are ignored by seq */
   useEffect(() => {
@@ -717,16 +737,14 @@ function ExistSheet({
     <Sheet open={open} onClose={onClose} side="bottom" title="确认这里有没有…" grab>
       <div>
         <span className="field-label">在哪个范围里找？</span>
-        <Seg
-          fluid
-          value={scope}
-          onChange={setScope}
-          options={[
-            { value: 'all', label: '全部位置' },
-            { value: 'study', label: '书房' },
-            { value: 'bedroom', label: '卧室' },
-          ]}
-        />
+        <select className="field" value={scopeId} onChange={(e) => setScopeId(e.target.value)}>
+          <option value="">全部位置</option>
+          {spaces.map((s) => (
+            <option key={s.id} value={s.id}>
+              ~/ {s.label}
+            </option>
+          ))}
+        </select>
       </div>
       <div>
         <span className="field-label">找什么？</span>

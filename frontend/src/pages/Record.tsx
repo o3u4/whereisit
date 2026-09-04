@@ -8,7 +8,7 @@
 
 import { useEffect, useRef, useState } from 'react';
 import type { CSSProperties, ReactNode } from 'react';
-import { Link, useNavigate, useSearchParams } from 'react-router-dom';
+import { Link, useLocation, useNavigate, useSearchParams } from 'react-router-dom';
 import { Icon } from '../components/icons';
 import { Wordmark, Seg, Stepper, StatusBadge, ToastsHost } from '../components/ui';
 import { TabBar, TabLink } from '../components/TabBar';
@@ -33,8 +33,15 @@ const stLabel = (s: ItemStatus) => STATUS[s].label;
 
 export default function Record() {
   const navigate = useNavigate();
+  const loc = useLocation();
   const [search] = useSearchParams();
   const toast = useToast((s) => s.push);
+
+  /* return to whichever page opened this wizard (that browse path or the hub) */
+  const goBack = () => {
+    if (loc.key !== 'default') navigate(-1);
+    else navigate('/');
+  };
 
   const items = useCatalog((s) => s.items);
   const tree = useCatalog((s) => s.tree);
@@ -241,7 +248,7 @@ export default function Record() {
       toast('登记失败 · 无法连接后端');
       return;
     }
-    pushRecent({ id: 'r' + Date.now(), verb: '放好', tone: 'present', icon: 'plus', name, sub: pathNames(tree, spot).join(' / '), time: '刚刚' });
+    pushRecent({ id: 'r' + Date.now(), verb: '放好', tone: 'present', icon: 'plus', name, slug: s, spot, sub: pathNames(tree, spot).join(' / '), time: '刚刚' });
     toast(`已登记「${name}」`);
     setSlug(s);
     setDone(true);
@@ -281,7 +288,7 @@ export default function Record() {
     } else if (qC) {
       verb = '整理';
     }
-    pushRecent({ id: 'r' + Date.now(), verb, tone, icon, name: it.name, sub: pathNames(tree, targetSpot).join(' / '), time: '刚刚' });
+    pushRecent({ id: 'r' + Date.now(), verb, tone, icon, name: it.name, slug: res.slug, spot: targetSpot, sub: pathNames(tree, targetSpot).join(' / '), time: '刚刚' });
     toast(`已更新「${it.name}」的位置与状态`);
     setSlug(res.slug);
     setDone(true);
@@ -682,6 +689,14 @@ export default function Record() {
               <div className="rec-tbrow">
                 <Wordmark />
                 <div className="hd-group">
+                  <button type="button" className="chip chip--glass" onClick={goBack} aria-label="返回上一步">
+                    <Icon name="arrow-l" size={14} />
+                    返回
+                  </button>
+                  <Link className="chip chip--glass" to="/">
+                    <Icon name="home" size={14} />
+                    去中枢
+                  </Link>
                   <Link className="chip chip--glass hide-mobile" to="/browse">
                     去目录
                   </Link>

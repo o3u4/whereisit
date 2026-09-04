@@ -709,6 +709,14 @@ main { flex: 1; }
   flex: none; min-width: 0; max-width: min(46vw, 300px);
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
 }
+/* header status pill → tap to change status (no separate row) */
+.st-edit {
+  flex: none; display: inline-flex; align-items: center; gap: 2px;
+  padding: 3px 2px 3px 5px; margin-right: -4px; border-radius: 999px;
+  transition: background-color 0.14s ease;
+}
+.st-edit:hover { background: rgb(255 255 255 / 0.72); }
+.st-edit svg { flex: none; }
 .brw-dl .attr-val { font-weight: 500; }
 .brw-dl .attr-val.t-muted { color: var(--muted); }
 .brw-dl .note-txt { font-weight: 500; color: var(--fg); overflow-wrap: anywhere; }

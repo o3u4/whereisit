@@ -654,10 +654,8 @@ export default function Browse() {
           <main>
             <section className="page-lead in d1">
               <p className="section-kicker">空间目录 · BROWSE</p>
-              <h1 className="lead-title">容器即路径。点进去，一路下钻。</h1>
-              <p className="lead-sub">
-                拖进另一个容器 = 挪动；拖到另一件物品上 = 合并同类。「此处物品」旁的「合并」可一次并入多条。
-              </p>
+              <h1 className="lead-title">按路径逐层下钻。</h1>
+              <p className="lead-sub">拖到另一容器＝挪动；拖到物品上＝合并同类。</p>
             </section>
 
             <div className="brw-cols in d2">
