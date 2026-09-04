@@ -55,6 +55,8 @@ interface CatalogState {
   commit: (slug: string, fields: CommitFields) => Promise<CommitResult | null>;
   /** server-side search (read-only, not queued); caller owns async state */
   search: (q: string, mode?: SearchModeDTO, scopeSpaceId?: number) => Promise<api.SearchResult>;
+  /** delete a presence (lot); resolves true on success */
+  deleteItem: (slug: string) => Promise<boolean>;
   pushRecent: (entry: RecentEntry) => void;
   setReveal: (slug: string | null) => void;
 }
@@ -183,6 +185,18 @@ export const useCatalog = create<CatalogState>((set) => {
 
     search: (q, mode, scopeSpaceId) =>
       api.search({ q, mode, scope_space_id: scopeSpaceId }),
+
+    deleteItem: (slug) =>
+      enqueue(async () => {
+        try {
+          await api.deleteLot(Number(slug));
+          await refreshItems();
+          return true;
+        } catch (e) {
+          set({ error: errText(e) });
+          return false;
+        }
+      }),
 
     pushRecent: (entry) => set((s) => ({ recent: [entry, ...s.recent].slice(0, 12) })),
 

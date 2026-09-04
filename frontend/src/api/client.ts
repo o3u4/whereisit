@@ -6,7 +6,14 @@
 import type { Item, ItemStatus } from '../lib/types';
 import { spaceToDir } from '../lib/tree';
 import type { DirNode } from '../lib/types';
-import type { LotDTO, SearchModeDTO, SearchResultDTO, SpaceHitDTO, SpaceNodeDTO } from './types';
+import type {
+  DeleteResultDTO,
+  LotDTO,
+  SearchModeDTO,
+  SearchResultDTO,
+  SpaceHitDTO,
+  SpaceNodeDTO,
+} from './types';
 
 const BASE = '/api';
 
@@ -119,6 +126,11 @@ export interface SearchResult {
   mode: SearchModeDTO;
   items: Item[];
   spaces: SpaceHitDTO[];
+}
+
+export async function deleteLot(lotId: number): Promise<{ removed_id: number }> {
+  const data = await request<DeleteResultDTO>('DELETE', `/items/lots/${lotId}`);
+  return { removed_id: data.removed_id };
 }
 
 export async function search(p: SearchParams): Promise<SearchResult> {

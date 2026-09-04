@@ -5,6 +5,7 @@
  *   - a lend/borrow toggle row keeps present<->lent status reachable
  */
 
+import { useState } from 'react';
 import type { CSSProperties } from 'react';
 import { Link } from 'react-router-dom';
 import { Sheet, StatusBadge } from './ui';
@@ -29,7 +30,9 @@ export function ItemSheet({
 }) {
   const setStatus = useCatalog((s) => s.setStatus);
   const tree = useCatalog((s) => s.tree);
+  const deleteItem = useCatalog((s) => s.deleteItem);
   const toast = useToast((s) => s.push);
+  const [armed, setArmed] = useState(false);
 
   if (!item) return null;
   const cat = catMeta(item.cat);
@@ -45,6 +48,37 @@ export function ItemSheet({
     setStatus(item.slug, next);
     toast(next === 'lent' ? `已标记借出「${item.name}」` : `已收回「${item.name}」`);
   };
+
+  const onDelete = async () => {
+    if (await deleteItem(item.slug)) {
+      toast(`已删除「${item.name}」`);
+      onClose();
+    } else {
+      toast('删除失败');
+      setArmed(false);
+    }
+  };
+
+  const deleteBtn = armed ? (
+    <div className="row gap8" style={{ width: '100%' }}>
+      <button type="button" className="btn btn--danger btn--lg" style={{ flex: 1 }} onClick={onDelete}>
+        确认删除
+      </button>
+      <button type="button" className="btn btn--ghost btn--lg" style={{ flex: 1 }} onClick={() => setArmed(false)}>
+        取消
+      </button>
+    </div>
+  ) : (
+    <button
+      type="button"
+      className="btn btn--ghost btn--lg"
+      style={{ width: '100%', color: 'var(--danger)' }}
+      onClick={() => setArmed(true)}
+      onMouseLeave={() => setArmed(false)}
+    >
+      删除这件 {item.name}
+    </button>
+  );
 
   const footPrimary =
     primary === 'move' ? (
@@ -83,6 +117,7 @@ export function ItemSheet({
         <div className="brw-sheet-foot">
           {footPrimary}
           {footGhost}
+          {deleteBtn}
         </div>
       }
     >

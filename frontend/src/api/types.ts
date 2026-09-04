@@ -50,3 +50,7 @@ export interface SearchResultDTO {
   items: LotDTO[];
   spaces: SpaceHitDTO[];
 }
+
+export interface DeleteResultDTO {
+  removed_id: number;
+}
