@@ -19,6 +19,7 @@ export type IconName =
   | 'drawer'
   | 'ellips'
   | 'home'
+  | 'image'
   | 'key'
   | 'locate'
   | 'move'
@@ -65,6 +66,13 @@ const BODIES: Record<IconName, ReactNode> = {
     <>
       <circle cx="8" cy="15" r="4" />
       <path d="m10.8 12.2 9-9M15.5 7.5l2.5 2.5M13 10l2 2" />
+    </>
+  ),
+  image: (
+    <>
+      <rect x="3" y="4.5" width="18" height="15" rx="2.5" />
+      <circle cx="9" cy="9.2" r="1.7" />
+      <path d="m4.5 16.8 5-4.4 3.2 3 2.8-2.5 4.6 4.2" />
     </>
   ),
   locate: (

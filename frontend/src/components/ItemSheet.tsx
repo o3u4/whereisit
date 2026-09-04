@@ -122,6 +122,12 @@ export function ItemSheet({
       }
     >
       <div className="sheet-body">
+        <div className="item-img">
+          <span className="item-img-ghost">
+            <Icon name="image" size={28} />
+            <span className="t-xs t-muted">图片预览 · 后续支持物品图片 / GIF</span>
+          </span>
+        </div>
         <div className="row gap10" style={{ alignItems: 'center' }}>
           <span className="brw-cglyph" style={tintVar}>
             <Icon name={cat.icon} />

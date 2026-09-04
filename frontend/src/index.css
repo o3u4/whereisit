@@ -693,6 +693,21 @@ main { flex: 1; }
 }
 .sheet-head h3 { font-size: 18px; font-weight: 700; letter-spacing: -0.01em; }
 .sheet-body { padding: 10px 18px 20px; overflow-y: auto; display: flex; flex-direction: column; gap: 14px; }
+.item-img {
+  position: relative;
+  border-radius: 18px;
+  aspect-ratio: 16 / 9;
+  overflow: hidden;
+  border: 1px solid rgb(255 255 255 / 0.72);
+  background:
+    radial-gradient(120% 100% at 12% -10%, rgb(255 255 255 / 0.85), transparent 55%),
+    linear-gradient(160deg, rgb(255 255 255 / 0.5), rgb(255 255 255 / 0.12));
+  display: flex; align-items: center; justify-content: center;
+}
+.item-img-ghost {
+  display: flex; flex-direction: column; align-items: center; gap: 8px;
+  color: var(--faint);
+}
 
 .menu {
   position: absolute; z-index: 120;
