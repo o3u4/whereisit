@@ -54,3 +54,10 @@ export interface SearchResultDTO {
 export interface DeleteResultDTO {
   removed_id: number;
 }
+
+export interface CategoryDTO {
+  id: number;
+  parent_id: number | null;
+  name: string;
+  item_count: number;
+}

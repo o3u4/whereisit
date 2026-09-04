@@ -225,12 +225,25 @@ export const statusLabel = (s: string): string =>
 /** build toast host (fixed). Consumes the global toast store. */
 export function ToastsHost() {
   const toasts = useToast((s) => s.toasts);
+  const dismiss = useToast((s) => s.dismiss);
   return (
     <div className="toasts">
       {toasts.map((t) => (
         <div className="toast" key={t.id}>
           {t.tone ? <CDot color="var(--accent)" /> : null}
           {t.text}
+          {t.actionLabel && t.action ? (
+            <button
+              type="button"
+              className="toast-action"
+              onClick={() => {
+                dismiss(t.id);
+                t.action?.();
+              }}
+            >
+              {t.actionLabel}
+            </button>
+          ) : null}
         </div>
       ))}
     </div>

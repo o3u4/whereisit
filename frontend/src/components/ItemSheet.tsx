@@ -31,6 +31,7 @@ export function ItemSheet({
   const setStatus = useCatalog((s) => s.setStatus);
   const tree = useCatalog((s) => s.tree);
   const deleteItem = useCatalog((s) => s.deleteItem);
+  const undo = useCatalog((s) => s.undo);
   const toast = useToast((s) => s.push);
   const [armed, setArmed] = useState(false);
 
@@ -46,12 +47,12 @@ export function ItemSheet({
   const toggleLend = () => {
     const next = lent ? 'present' : 'lent';
     setStatus(item.slug, next);
-    toast(next === 'lent' ? `已标记借出「${item.name}」` : `已收回「${item.name}」`);
+    toast(next === 'lent' ? `已标记借出「${item.name}」` : `已收回「${item.name}」`, undefined, '撤销', () => void undo());
   };
 
   const onDelete = async () => {
     if (await deleteItem(item.slug)) {
-      toast(`已删除「${item.name}」`);
+      toast(`已删除「${item.name}」`, undefined, '撤销', () => void undo());
       onClose();
     } else {
       toast('删除失败');

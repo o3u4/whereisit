@@ -37,6 +37,8 @@ export default function Hub() {
   const [split, setSplit] = useState(false);
   const [existOpen, setExistOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [catOpen, setCatOpen] = useState(false);
+  const [mergeOpen, setMergeOpen] = useState(false);
   const [q, setQ] = useState('');
   const [sel, setSel] = useState(-1);
   const [mode, setMode] = useState<SearchModeDTO>('fuzzy');
@@ -516,7 +518,20 @@ export default function Hub() {
 
       <ItemSheet item={item} open={itemOpen} onClose={closeItem} primary="locate" />
 
-      <SettingsSheet open={settingsOpen} onClose={() => setSettingsOpen(false)} />
+      <SettingsSheet
+        open={settingsOpen}
+        onClose={() => setSettingsOpen(false)}
+        onManageCategories={() => {
+          setSettingsOpen(false);
+          setCatOpen(true);
+        }}
+        onMergeDefs={() => {
+          setSettingsOpen(false);
+          setMergeOpen(true);
+        }}
+      />
+      <CategorySheet open={catOpen} onClose={() => setCatOpen(false)} />
+      <MergeDefsSheet open={mergeOpen} onClose={() => setMergeOpen(false)} />
       <ExistSheet open={existOpen} onClose={() => setExistOpen(false)} onOpenItem={openItem} />
       <ToastsHost />
     </div>
@@ -534,7 +549,17 @@ function LangToggle() {
 }
 
 /* ------------------------------------------------ settings --------------- */
-function SettingsSheet({ open, onClose }: { open: boolean; onClose: () => void }) {
+function SettingsSheet({
+  open,
+  onClose,
+  onManageCategories,
+  onMergeDefs,
+}: {
+  open: boolean;
+  onClose: () => void;
+  onManageCategories: () => void;
+  onMergeDefs: () => void;
+}) {
   const toast = useToast((s) => s.push);
   const [lang, setLang] = useState('zh');
   const [theme, setTheme] = useState('light');
@@ -600,6 +625,18 @@ function SettingsSheet({ open, onClose }: { open: boolean; onClose: () => void }
         <div className="rowline between mt8">
           <span className="t-sm">访问需口令</span>
           <Switch on={pin} onChange={setPin} />
+        </div>
+      </div>
+      <hr className="hr" />
+      <div className="col gap6">
+        <span className="field-label">数据整理</span>
+        <div className="rowline gap8">
+          <button type="button" className="btn btn--soft btn--sm" onClick={onManageCategories}>
+            分类管理
+          </button>
+          <button type="button" className="btn btn--soft btn--sm" onClick={onMergeDefs}>
+            合并重复物品
+          </button>
         </div>
       </div>
       <hr className="hr" />
@@ -744,6 +781,205 @@ function ExistSheet({
             <span>换个说法，或确认是否真的在这里登记过</span>
           </div>
         )}
+      </div>
+    </Sheet>
+  );
+}
+
+/* ------------------------------------------------ category management ----- */
+function CategorySheet({ open, onClose }: { open: boolean; onClose: () => void }) {
+  const categories = useCatalog((s) => s.categories);
+  const addCategory = useCatalog((s) => s.addCategory);
+  const renameCategory = useCatalog((s) => s.renameCategory);
+  const removeCategory = useCatalog((s) => s.removeCategory);
+  const toast = useToast((s) => s.push);
+
+  const [newName, setNewName] = useState('');
+  const [editingId, setEditingId] = useState<number | null>(null);
+  const [editingName, setEditingName] = useState('');
+  const [deletingId, setDeletingId] = useState<number | null>(null);
+  const [deleteInto, setDeleteInto] = useState<number | ''>('');
+
+  const submitNew = async () => {
+    const n = newName.trim();
+    if (!n) return;
+    if (await addCategory(n)) toast(`已新增分类「${n}」`);
+    setNewName('');
+  };
+  const saveRename = async () => {
+    if (editingId == null) return;
+    const n = editingName.trim();
+    if (n && (await renameCategory(editingId, n))) toast('已重命名');
+    setEditingId(null);
+  };
+  const confirmDelete = async () => {
+    if (deletingId == null) return;
+    const into = deleteInto === '' ? undefined : Number(deleteInto);
+    if (await removeCategory(deletingId, into)) toast('已删除分类');
+    setDeletingId(null);
+    setDeleteInto('');
+  };
+
+  return (
+    <Sheet open={open} onClose={onClose} side="bottom" title="分类管理" grab>
+      <div className="rowline gap8">
+        <input
+          className="field"
+          placeholder="新分类名称"
+          value={newName}
+          onChange={(e) => setNewName(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter') void submitNew();
+          }}
+        />
+        <button
+          type="button"
+          className="btn btn--primary btn--sm"
+          onClick={() => void submitNew()}
+          disabled={!newName.trim()}
+        >
+          添加
+        </button>
+      </div>
+      <div className="col gap6">
+        {categories.map((c) => {
+          const editing = editingId === c.id;
+          const deleting = deletingId === c.id;
+          return (
+            <div key={c.id} className="glass-card panel" style={{ padding: 10, display: 'flex', alignItems: 'center', gap: 8 }}>
+              {editing ? (
+                <>
+                  <input
+                    className="field"
+                    value={editingName}
+                    onChange={(e) => setEditingName(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') void saveRename();
+                    }}
+                  />
+                  <button type="button" className="btn btn--soft btn--sm" onClick={() => void saveRename()}>保存</button>
+                  <button type="button" className="btn btn--ghost btn--sm" onClick={() => setEditingId(null)}>取消</button>
+                </>
+              ) : deleting ? (
+                <>
+                  <span className="grow t-sm" style={{ minWidth: 0 }}>
+                    {c.itemCount > 0 ? (
+                      <select
+                        className="field"
+                        style={{ margin: 0 }}
+                        value={deleteInto}
+                        onChange={(e) => setDeleteInto(e.target.value ? Number(e.target.value) : '')}
+                      >
+                        <option value="">先选合并到的分类…</option>
+                        {categories.filter((x) => x.id !== c.id).map((x) => (
+                          <option key={x.id} value={x.id}>{x.name}</option>
+                        ))}
+                      </select>
+                    ) : (
+                      <span>确认删除「{c.name}」？</span>
+                    )}
+                  </span>
+                  <button
+                    type="button"
+                    className="btn btn--danger btn--sm"
+                    disabled={c.itemCount > 0 && deleteInto === ''}
+                    onClick={() => void confirmDelete()}
+                  >
+                    删除
+                  </button>
+                  <button type="button" className="btn btn--ghost btn--sm" onClick={() => setDeletingId(null)}>取消</button>
+                </>
+              ) : (
+                <>
+                  <span className="grow ellip">{c.name}</span>
+                  <span className="tag tag--type" style={V({ ['--tc']: 'var(--muted)' })}>{c.itemCount} 件</span>
+                  <button
+                    type="button"
+                    className="btn btn--ghost btn--sm"
+                    onClick={() => {
+                      setEditingId(c.id);
+                      setEditingName(c.name);
+                    }}
+                  >
+                    改名
+                  </button>
+                  <button
+                    type="button"
+                    className="btn btn--ghost btn--sm"
+                    style={V({ color: 'var(--danger)' })}
+                    onClick={() => {
+                      setDeletingId(c.id);
+                      setDeleteInto('');
+                    }}
+                  >
+                    删除
+                  </button>
+                </>
+              )}
+            </div>
+          );
+        })}
+        {categories.length === 0 ? (
+          <p className="t-sm t-faint">还没有分类。登记时会自动创建；也可以在这里新增。</p>
+        ) : null}
+      </div>
+    </Sheet>
+  );
+}
+
+/* ------------------------------------------------ merge duplicates -------- */
+function MergeDefsSheet({ open, onClose }: { open: boolean; onClose: () => void }) {
+  const items = useCatalog((s) => s.items);
+  const mergeDefs = useCatalog((s) => s.mergeDefs);
+  const toast = useToast((s) => s.push);
+  const [keepId, setKeepId] = useState<number | null>(null);
+
+  const defs = useMemo(() => {
+    const map = new Map<number, { defId: number; name: string; count: number }>();
+    for (const it of items) {
+      const g = map.get(it.defId);
+      if (g) g.count += 1;
+      else map.set(it.defId, { defId: it.defId, name: it.name, count: 1 });
+    }
+    return [...map.values()].sort(
+      (a, b) => b.count - a.count || a.name.localeCompare(b.name, 'zh'),
+    );
+  }, [items]);
+
+  const doMerge = async (fromId: number) => {
+    if (keepId == null) return;
+    const keep = defs.find((d) => d.defId === keepId);
+    if (await mergeDefs(keepId, fromId)) toast(`已并入「${keep?.name ?? ''}」`);
+  };
+
+  return (
+    <Sheet open={open} onClose={onClose} side="bottom" title="合并重复物品" grab>
+      <p className="t-sm t-faint">先点一下「设为保留」选目标；其余条目可「并入」它。合并不可撤销。</p>
+      <div className="col gap6">
+        {defs.map((d) => {
+          const isKeep = d.defId === keepId;
+          return (
+            <div key={d.defId} className="glass-card panel" style={{ padding: 10, display: 'flex', alignItems: 'center', gap: 8 }}>
+              <button
+                type="button"
+                className="btn btn--soft btn--sm"
+                disabled={isKeep}
+                onClick={() => setKeepId(d.defId)}
+                style={isKeep ? { background: 'var(--accent)', color: '#fff' } : undefined}
+              >
+                {isKeep ? '保留' : '设为保留'}
+              </button>
+              <span className="grow ellip">{d.name}</span>
+              <span className="tag tag--type" style={V({ ['--tc']: 'var(--muted)' })}>{d.count} 件</span>
+              {keepId != null && !isKeep ? (
+                <button type="button" className="btn btn--danger btn--sm" onClick={() => void doMerge(d.defId)}>
+                  并入
+                </button>
+              ) : null}
+            </div>
+          );
+        })}
+        {defs.length === 0 ? <p className="t-sm t-faint">还没有可合并的物品。</p> : null}
       </div>
     </Sheet>
   );

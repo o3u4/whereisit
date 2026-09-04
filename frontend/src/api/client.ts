@@ -3,10 +3,11 @@
  * the {"error": msg} body as an ApiError. All id bridge points (backend int <-> UI
  * string) and status-vocabulary adaptation live here + in lib/tree.spaceToDir. */
 
-import type { Item, ItemStatus } from '../lib/types';
+import type { Category, Item, ItemStatus } from '../lib/types';
 import { spaceToDir } from '../lib/tree';
 import type { DirNode } from '../lib/types';
 import type {
+  CategoryDTO,
   DeleteResultDTO,
   LotDTO,
   SearchModeDTO,
@@ -45,6 +46,7 @@ async function request<T>(method: string, path: string, body?: unknown): Promise
 function lotToItem(lot: LotDTO): Item {
   return {
     slug: String(lot.lot_id),
+    defId: lot.def_id,
     name: lot.name,
     alias: lot.alias ?? '',
     qty: lot.qty,
@@ -131,6 +133,41 @@ export interface SearchResult {
 export async function deleteLot(lotId: number): Promise<{ removed_id: number }> {
   const data = await request<DeleteResultDTO>('DELETE', `/items/lots/${lotId}`);
   return { removed_id: data.removed_id };
+}
+
+function catFromDTO(d: CategoryDTO): Category {
+  return { id: d.id, name: d.name, itemCount: d.item_count };
+}
+
+export async function fetchCategories(): Promise<Category[]> {
+  const data = await request<CategoryDTO[]>('GET', '/categories');
+  return data.map(catFromDTO);
+}
+
+export async function createCategory(name: string): Promise<Category> {
+  const data = await request<CategoryDTO>('POST', '/categories', { name });
+  return catFromDTO(data);
+}
+
+export async function renameCategory(id: number, name: string): Promise<Category> {
+  const data = await request<CategoryDTO>('PATCH', `/categories/${id}`, { name });
+  return catFromDTO(data);
+}
+
+export async function deleteCategory(id: number, intoId?: number): Promise<{ removed_id: number }> {
+  const path = `/categories/${id}${intoId ? `?into_id=${intoId}` : ''}`;
+  const data = await request<DeleteResultDTO>('DELETE', path);
+  return { removed_id: data.removed_id };
+}
+
+export interface MergeDefsResult {
+  kept_id: number;
+  removed_id: number;
+  lots_moved: number;
+}
+
+export async function mergeDefs(keepId: number, fromId: number): Promise<MergeDefsResult> {
+  return request<MergeDefsResult>('POST', `/items/defs/${keepId}/merge`, { from_id: fromId });
 }
 
 export async function search(p: SearchParams): Promise<SearchResult> {

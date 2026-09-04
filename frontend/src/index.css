@@ -784,6 +784,16 @@ main { flex: 1; }
   animation: toast-in 0.26s var(--ease-out) both;
 }
 .toast .mono-path { color: color-mix(in oklch, #fff 75%, transparent); }
+.toast-action {
+  margin-left: 2px;
+  border: 1px solid rgb(255 255 255 / 0.35);
+  border-radius: 999px;
+  padding: 3px 10px;
+  font-size: 12px; font-weight: 600;
+  color: #fff; background: rgb(255 255 255 / 0.14);
+  cursor: pointer;
+}
+.toast-action:hover { background: rgb(255 255 255 / 0.24); }
 .toast.out { animation: toast-out 0.24s ease both; }
 @keyframes toast-in { from { opacity: 0; transform: translateY(10px) scale(0.96); } }
 @keyframes toast-out { to { opacity: 0; transform: translateY(8px) scale(0.97); } }

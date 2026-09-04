@@ -40,6 +40,8 @@ export interface Scene {
 export interface Item {
   /** String(lot id) — a presence row, not a def */
   slug: string;
+  /** the item def this presence belongs to (for grouping/merging) */
+  defId: number;
   name: string;
   alias: string;
   qty: number;
@@ -61,4 +63,11 @@ export interface RecentEntry {
   /** breadcrumb-ish path text, e.g. 书房 / 书桌 / 左侧抽屉 */
   sub: string;
   time: string;
+}
+
+export interface Category {
+  id: number;
+  name: string;
+  /** how many item defs reference this category */
+  itemCount: number;
 }

@@ -38,11 +38,18 @@ export default function Record() {
 
   const items = useCatalog((s) => s.items);
   const tree = useCatalog((s) => s.tree);
+  const categories = useCatalog((s) => s.categories);
   const ready = useCatalog((s) => s.ready);
   const addItem = useCatalog((s) => s.addItem);
   const commit = useCatalog((s) => s.commit);
   const pushRecent = useCatalog((s) => s.pushRecent);
   const setReveal = useCatalog((s) => s.setReveal);
+
+  /* category choices: real categories when present, else the four demo ones */
+  const catChoices =
+    categories.length > 0
+      ? categories.map((c) => ({ id: c.id, name: c.name }))
+      : KNOWN_CAT_LABELS.map((n) => ({ id: n, name: n }));
 
   const [mode, setMode] = useState<Mode>('A');
   const [slug, setSlug] = useState<string | null>(null);
@@ -386,17 +393,17 @@ export default function Record() {
           类别 <span className="hint">必填</span>
         </span>
         <div className="rec-cats">
-          {KNOWN_CAT_LABELS.map((c) => (
+          {catChoices.map((c) => (
             <button
-              key={c}
+              key={c.id}
               type="button"
-              className={`rec-cat${cat === c ? ' rec-cat--on' : ''}`}
-              aria-pressed={cat === c}
-              onClick={() => setCat(c)}
-              style={V({ ['--tc']: catMeta(c).tint })}
+              className={`rec-cat${cat === c.name ? ' rec-cat--on' : ''}`}
+              aria-pressed={cat === c.name}
+              onClick={() => setCat(c.name)}
+              style={V({ ['--tc']: catMeta(c.name).tint })}
             >
-              <Icon name={catMeta(c).icon} />
-              {c}
+              <Icon name={catMeta(c.name).icon} />
+              {c.name}
             </button>
           ))}
         </div>
