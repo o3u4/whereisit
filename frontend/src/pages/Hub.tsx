@@ -611,8 +611,11 @@ function SettingsSheet({
         setCurrentToken(token);
         setS((p) => (p ? { ...p, token_enabled: true } : p));
       } else {
-        useAuth.getState().clearToken();
+        // revoke first while the browser still holds the token; clearing the
+        // local copy beforehand strips the auth header → 401 → the token gate
+        // pops up and protection never actually turns off.
         await api.revokeAccessToken();
+        useAuth.getState().clearToken();
         setCurrentToken(null);
         setS((p) => (p ? { ...p, token_enabled: false } : p));
       }
