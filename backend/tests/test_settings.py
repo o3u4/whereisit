@@ -18,8 +18,8 @@ def _reset(client):
     from app.domains.settings import service
 
     with tx() as conn:
-        service.clear_token(conn)
-        service.put(conn, lang="zh")
+        service.clear_token(conn, 1)  # root; leaves the shared DB: protection off + zh
+        service.put(conn, 1, lang="zh")
 
 
 def test_settings_defaults(client):

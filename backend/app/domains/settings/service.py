@@ -32,85 +32,92 @@ def token_enabled(conn: sqlite3.Connection) -> bool:
     return bool(_get(conn, "token_enabled", False))
 
 
-def get(conn: sqlite3.Connection) -> dict:
+def _user(conn: sqlite3.Connection, user_id: int) -> Optional[dict]:
+    row = conn.execute(
+        "SELECT id, username, is_admin FROM users WHERE id = ?", (user_id,)
+    ).fetchone()
+    return dict(row) if row else None
+
+
+def get(conn: sqlite3.Connection, user_id: int) -> dict:
+    u = _user(conn, user_id) or {"username": None, "is_admin": 0}
     return {
         "lang": _get(conn, "lang", "zh"),
         "token_enabled": token_enabled(conn),
         "lan_url": lan_url(),
+        "username": u["username"],
+        "is_admin": bool(u["is_admin"]),
     }
 
 
-def put(conn: sqlite3.Connection, *, lang: Optional[str] = None, token_enabled: Optional[bool] = None) -> dict:
+def put(conn: sqlite3.Connection, user_id: int, *, lang: Optional[str] = None, token_enabled: Optional[bool] = None) -> dict:
     if lang is not None:
         if lang not in ("zh", "en"):
             raise BadRequest("lang must be 'zh' or 'en'")
         _put(conn, "lang", lang)
     if token_enabled is not None:
         if token_enabled:
-            if not has_token(conn):
+            if not has_token(conn, user_id):
                 raise BadRequest("先设置访问令牌，再开启保护")
             _put(conn, "token_enabled", True)
         else:
             _put(conn, "token_enabled", False)
-    return get(conn)
+    return get(conn, user_id)
 
 
-def has_token(conn: sqlite3.Connection) -> bool:
-    row = conn.execute("SELECT 1 FROM secrets WHERE key = 'access_token'").fetchone()
+def has_token(conn: sqlite3.Connection, user_id: int) -> bool:
+    row = conn.execute("SELECT 1 FROM user_tokens WHERE user_id = ?", (user_id,)).fetchone()
     return row is not None
 
 
-def get_token(conn: sqlite3.Connection) -> Optional[str]:
-    """Return the current plaintext token, or None if none exists. Lets an
-    authorized session re-show / re-download a token it already created."""
-    row = conn.execute("SELECT cipher_blob FROM secrets WHERE key = 'access_token'").fetchone()
+def get_token(conn: sqlite3.Connection, user_id: int) -> Optional[str]:
+    """Return a user's plaintext token, or None if they have none."""
+    row = conn.execute("SELECT cipher_blob FROM user_tokens WHERE user_id = ?", (user_id,)).fetchone()
     if row is None:
         return None
     return crypto.try_decrypt_secret(row["cipher_blob"])
 
 
-def _write_token(conn: sqlite3.Connection, token: str) -> None:
+def _write_token(conn: sqlite3.Connection, user_id: int, token: str) -> None:
     conn.execute(
-        "INSERT INTO secrets (key, cipher_blob) VALUES ('access_token', ?) "
-        "ON CONFLICT(key) DO UPDATE SET cipher_blob = excluded.cipher_blob, updated_at = datetime('now')",
-        (crypto.encrypt_secret(token),),
+        "INSERT INTO user_tokens (user_id, cipher_blob) VALUES (?, ?) "
+        "ON CONFLICT(user_id) DO UPDATE SET cipher_blob = excluded.cipher_blob, updated_at = datetime('now')",
+        (user_id, crypto.encrypt_secret(token)),
     )
 
 
-def ensure_token(conn: sqlite3.Connection) -> str:
-    """Stable: return the existing token if one exists, otherwise create it.
-    Never rotates an existing token — the operator can re-show/copy/download it."""
-    existing = get_token(conn)
+def ensure_token(conn: sqlite3.Connection, user_id: int) -> str:
+    """Stable: return the user's existing token or create one. Never rotates."""
+    existing = get_token(conn, user_id)
     token = existing if existing is not None else _secrets.token_urlsafe(32)
     if existing is None:
-        _write_token(conn, token)
+        _write_token(conn, user_id, token)
     _put(conn, "token_enabled", True)
     return token
 
 
-def rotate_token(conn: sqlite3.Connection) -> str:
-    """Explicitly replace the current token with a brand-new one (old ones die)."""
+def rotate_token(conn: sqlite3.Connection, user_id: int) -> str:
+    """Explicitly replace a user's token with a brand-new one (old ones die)."""
     token = _secrets.token_urlsafe(32)
-    _write_token(conn, token)
+    _write_token(conn, user_id, token)
     _put(conn, "token_enabled", True)
     return token
 
 
-def clear_token(conn: sqlite3.Connection) -> None:
-    conn.execute("DELETE FROM secrets WHERE key = 'access_token'")
+def clear_token(conn: sqlite3.Connection, user_id: int) -> None:
+    conn.execute("DELETE FROM user_tokens WHERE user_id = ?", (user_id,))
     _put(conn, "token_enabled", False)
 
 
-def valid_token(conn: sqlite3.Connection, candidate: str) -> bool:
+def user_id_for_token(conn: sqlite3.Connection, candidate: str) -> Optional[int]:
+    """Resolve a Bearer token to its user id, or None if it matches none."""
     if not candidate:
-        return False
-    row = conn.execute("SELECT cipher_blob FROM secrets WHERE key = 'access_token'").fetchone()
-    if row is None:
-        return False
-    stored = crypto.try_decrypt_secret(row["cipher_blob"])
-    if stored is None:
-        return False
-    return hmac.compare_digest(stored, candidate)
+        return None
+    for row in conn.execute("SELECT user_id, cipher_blob FROM user_tokens").fetchall():
+        stored = crypto.try_decrypt_secret(row["cipher_blob"])
+        if stored is not None and hmac.compare_digest(stored, candidate):
+            return row["user_id"]
+    return None
 
 
 def lan_url() -> str:

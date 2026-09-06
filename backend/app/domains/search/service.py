@@ -9,6 +9,7 @@ from app.domains.search import providers
 
 def search(
     conn: sqlite3.Connection,
+    user_id: int,
     *,
     q: str,
     mode: str = "fuzzy",
@@ -25,6 +26,7 @@ def search(
     fn = providers.get_provider(mode)
     return fn(
         conn,
+        user_id,
         q=q,
         scope_space_id=scope_space_id,
         category_id=category_id,

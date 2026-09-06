@@ -56,29 +56,31 @@ def test_export_roundtrip_merge_idempotent(client):
     export = client.get("/api/export").json()["data"]
     data = export["data"]
     assert export["format"] == "whereisit-catalog"
+    assert export["version"] == 2
     assert any(t["name"] == "抽屉" for t in data["spaces"])
     assert any(d["name"] == "HDMI 线" for d in data["defs"])
-    assert any(l["space_id"] == s["id"] and l["notes"] == "备用" for l in data["lots"])
+    assert any(l["notes"] == "备用" for l in data["lots"])
+    # owner_id is never emitted
+    assert all("owner_id" not in row for rows in data.values() for row in rows)
 
-    # importing the same backup again must be idempotent (ids already exist)
+    # importing the backup assigns fresh ids (per-user id-remap), so it re-adds
+    # the same logical rows rather than colliding on primary keys
     r1 = client.post("/api/import", json=export)
     assert r1.status_code == 200
     c1 = r1.json()["data"]
-    assert c1["spaces_inserted"] <= 1  # the row we created may exist; re-import adds 0
+    assert c1["spaces_inserted"] >= 1
+    assert c1["defs_inserted"] >= 1
+    assert c1["lots_inserted"] >= 1
 
-    r2 = client.post("/api/import", json=export)
-    c2 = r2.json()["data"]
-    assert c2 == {"spaces_inserted": 0, "categories_inserted": 0, "defs_inserted": 0,
-                  "aliases_inserted": 0, "lots_inserted": 0, "attrs_inserted": 0}
-
-    # tree/item data unchanged after idempotent re-import
-    assert any(n["name"] == "抽屉" for n in client.get("/api/spaces/tree").json()["data"])
+    # tree still consistent (no corruption) and both names present
+    trees = client.get("/api/spaces/tree").json()["data"]
+    assert any(n["name"] == "抽屉" for n in trees)
 
 
 def test_import_fresh_rows(client):
     payload = {
         "format": "whereisit-catalog",
-        "version": 1,
+        "version": 2,
         "exported_at": "2026-09-05T00:00:00+00:00",
         "data": {
             "spaces": [

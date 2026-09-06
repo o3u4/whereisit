@@ -17,7 +17,7 @@ def _reset(client):
     from app.domains.settings import service
 
     with tx() as conn:
-        service.clear_token(conn)
+        service.clear_token(conn, 1)  # leave shared DB: protection off, root token gone
 
 
 def test_token_off_is_open(client):

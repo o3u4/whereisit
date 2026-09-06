@@ -2,9 +2,10 @@ from __future__ import annotations
 
 from typing import Optional
 
-from fastapi import APIRouter, Query
+from fastapi import APIRouter, Depends, Query
 
 from app.core.api import ok
+from app.core.auth import get_current_user
 from app.db.engine import read
 from app.domains.search import service
 
@@ -17,11 +18,13 @@ def search_items(
     mode: str = Query(default="fuzzy", description="exact|fuzzy|category|existence"),
     scope_space_id: Optional[int] = Query(default=None),
     category_id: Optional[int] = Query(default=None),
+    user_id: int = Depends(get_current_user),
 ) -> dict:
     with read() as conn:
         return ok(
             service.search(
                 conn,
+                user_id,
                 q=q,
                 mode=mode,
                 scope_space_id=scope_space_id,

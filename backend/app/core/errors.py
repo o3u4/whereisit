@@ -19,3 +19,7 @@ class Conflict(ApiError):
 
 class BadRequest(ApiError):
     status_code = 400
+
+
+class Forbidden(ApiError):
+    status_code = 403

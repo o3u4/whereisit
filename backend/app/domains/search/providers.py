@@ -1,6 +1,7 @@
 # Search provider seam. A provider owns one search mode: 模糊(fuzzy), 精确(exact),
 # 类别(category), 存在性(existence). A future semantic/Vec provider (sqlite-vec)
 # just registers itself and callers (router/Hub) stay untouched.
+# Every provider is scoped to a user_id (owner_id) for per-user data isolation.
 
 from __future__ import annotations
 
@@ -25,7 +26,7 @@ def _norm_terms(q: str) -> list[str]:
     return norm_text(q).split()
 
 
-def _matches_space(conn: Conn, *, terms: list[str], exact: bool = False) -> list[dict]:
+def _matches_space(conn: Conn, user_id: int, *, terms: list[str], exact: bool = False) -> list[dict]:
     conds: list[str] = []
     params: list = []
     if exact:
@@ -39,6 +40,8 @@ def _matches_space(conn: Conn, *, terms: list[str], exact: bool = False) -> list
             else:
                 conds.append("name_norm LIKE ?")
                 params.append(f"%{t}%")
+    conds.append("owner_id = ?")
+    params.append(user_id)
     where = " AND ".join(conds) if conds else "1=0"
     rows = conn.execute(
         f"SELECT id, parent_id, name, type_tag FROM spaces WHERE {where} ORDER BY ord, id",
@@ -47,7 +50,7 @@ def _matches_space(conn: Conn, *, terms: list[str], exact: bool = False) -> list
     return [dict(r) for r in rows]
 
 
-def _fuzzy_def_ids(conn: Conn, terms: list[str]) -> set[int]:
+def _fuzzy_def_ids(conn: Conn, user_id: int, terms: list[str]) -> set[int]:
     conds: list[str] = []
     params: list = []
     for t in terms:
@@ -67,81 +70,86 @@ def _fuzzy_def_ids(conn: Conn, terms: list[str]) -> set[int]:
             params += [f"%{t}%", f"%{t}%"]
     if not conds:
         return set()
+    conds.append("d.owner_id = ?")
+    params.append(user_id)
     rows = conn.execute(
         "SELECT DISTINCT d.id FROM item_defs d WHERE " + " AND ".join(conds), params
     ).fetchall()
     return {r["id"] for r in rows}
 
 
-def _exact_def_ids(conn: Conn, joined: str) -> set[int]:
+def _exact_def_ids(conn: Conn, user_id: int, joined: str) -> set[int]:
     ids = {r["id"] for r in conn.execute(
-        "SELECT id FROM item_defs WHERE name_norm = ?", (joined,)
+        "SELECT id FROM item_defs WHERE name_norm = ? AND owner_id = ?", (joined, user_id)
     ).fetchall()}
     ids |= {r["def_id"] for r in conn.execute(
-        "SELECT def_id FROM item_aliases WHERE name_norm = ?", (joined,)
+        "SELECT a.def_id FROM item_aliases a JOIN item_defs d ON d.id = a.def_id "
+        "WHERE a.name_norm = ? AND d.owner_id = ?",
+        (joined, user_id),
     ).fetchall()}
     return ids
 
 
-def _lots_of(conn: Conn, def_ids: set[int]) -> list[dict]:
+def _lots_of(conn: Conn, user_id: int, def_ids: set[int]) -> list[dict]:
     if not def_ids:
         return []
     ph = ",".join("?" * len(def_ids))
     ordered = tuple(sorted(def_ids))
     rows = conn.execute(
-        f"SELECT id FROM item_lots WHERE def_id IN ({ph}) ORDER BY id", ordered
+        f"SELECT id FROM item_lots WHERE def_id IN ({ph}) AND owner_id = ? ORDER BY id",
+        ordered + (user_id,),
     ).fetchall()
-    return [_build_lot(conn, r["id"]) for r in rows]
+    return [_build_lot(conn, user_id, r["id"]) for r in rows]
 
 
-def _category_ids(conn: Conn, category_id: Optional[int], norm: str) -> set[int]:
+def _category_ids(conn: Conn, user_id: int, category_id: Optional[int], norm: str) -> set[int]:
     if category_id is not None:
         rows = conn.execute(
             "WITH RECURSIVE c(id) AS ("
-            "  SELECT id FROM categories WHERE id = ?"
+            "  SELECT id FROM categories WHERE id = ? AND owner_id = ?"
             "  UNION ALL"
-            "  SELECT x.id FROM categories x JOIN c ON x.parent_id = c.id"
+            "  SELECT x.id FROM categories x JOIN c ON x.parent_id = c.id WHERE x.owner_id = ?"
             ") SELECT id FROM c",
-            (category_id,),
+            (category_id, user_id, user_id),
         ).fetchall()
         return {r["id"] for r in rows}
     rows = conn.execute(
-        "SELECT id FROM categories WHERE parent_id IS NULL AND name_norm LIKE ?",
-        (f"%{norm}%",),
+        "SELECT id FROM categories WHERE parent_id IS NULL AND name_norm LIKE ? AND owner_id = ?",
+        (f"%{norm}%", user_id),
     ).fetchall()
     return {r["id"] for r in rows}
 
 
-def _lots_in_categories(conn: Conn, cat_ids: set[int]) -> list[dict]:
+def _lots_in_categories(conn: Conn, user_id: int, cat_ids: set[int]) -> list[dict]:
     if not cat_ids:
         return []
     ph = ",".join("?" * len(cat_ids))
     ordered = tuple(sorted(cat_ids))
     rows = conn.execute(
-        f"SELECT id FROM item_lots WHERE def_id IN "
-        f"(SELECT id FROM item_defs WHERE category_id IN ({ph})) ORDER BY id",
-        ordered,
+        f"SELECT id FROM item_lots WHERE owner_id = ? AND def_id IN "
+        f"(SELECT id FROM item_defs WHERE owner_id = ? AND category_id IN ({ph})) ORDER BY id",
+        (user_id, user_id) + ordered,
     ).fetchall()
-    return [_build_lot(conn, r["id"]) for r in rows]
+    return [_build_lot(conn, user_id, r["id"]) for r in rows]
 
 
-def _subtree_ids(conn: Conn, space_id: int) -> set[int]:
-    return {r["id"] for r in _spaces_service.subtree(conn, space_id)}
+def _subtree_ids(conn: Conn, user_id: int, space_id: int) -> set[int]:
+    return {r["id"] for r in _spaces_service.subtree(conn, user_id, space_id)}
 
 
-def _existence_lots(conn: Conn, def_ids: set[int], scope_space_id: Optional[int]) -> list[dict]:
+def _existence_lots(conn: Conn, user_id: int, def_ids: set[int], scope_space_id: Optional[int]) -> list[dict]:
     if not def_ids:
         return []
     dph = ",".join("?" * len(def_ids))
     base = (
         "SELECT l.id FROM item_lots l WHERE l.def_id IN ("
         + dph
-        + ") AND l.status = 'present'"
+        + ") AND l.status = 'present' AND l.owner_id = ?"
     )
     scope_clause = ""
-    params: list = sorted(def_ids)
+    params: list = sorted(def_ids) + [user_id]
     if scope_space_id is not None:
-        subtree = sorted(_subtree_ids(conn, scope_space_id))
+        subtree = sorted(_subtree_ids(conn, user_id, scope_space_id))
         if not subtree:
             return []
         sph = ",".join("?" * len(subtree))
@@ -149,33 +157,33 @@ def _existence_lots(conn: Conn, def_ids: set[int], scope_space_id: Optional[int]
         params = params + subtree
     sql = base + scope_clause + " ORDER BY l.id"
     rows = conn.execute(sql, params).fetchall()
-    return [_build_lot(conn, r["id"]) for r in rows]
+    return [_build_lot(conn, user_id, r["id"]) for r in rows]
 
 
 # ------------------------------------------------------------------- modes ----
 
-def search_fuzzy(conn, *, q, scope_space_id=None, category_id=None) -> dict:
+def search_fuzzy(conn, user_id, *, q, scope_space_id=None, category_id=None) -> dict:
     terms = _norm_terms(q)
-    items = _lots_of(conn, _fuzzy_def_ids(conn, terms))
-    spaces = _matches_space(conn, terms=terms)
+    items = _lots_of(conn, user_id, _fuzzy_def_ids(conn, user_id, terms))
+    spaces = _matches_space(conn, user_id, terms=terms)
     return {"mode": "fuzzy", "items": items, "spaces": spaces}
 
 
-def search_exact(conn, *, q, scope_space_id=None, category_id=None) -> dict:
+def search_exact(conn, user_id, *, q, scope_space_id=None, category_id=None) -> dict:
     joined = " ".join(_norm_terms(q))
-    items = _lots_of(conn, _exact_def_ids(conn, joined))
-    spaces = _matches_space(conn, terms=[joined], exact=True)
+    items = _lots_of(conn, user_id, _exact_def_ids(conn, user_id, joined))
+    spaces = _matches_space(conn, user_id, terms=[joined], exact=True)
     return {"mode": "exact", "items": items, "spaces": spaces}
 
 
-def search_category(conn, *, q, scope_space_id=None, category_id=None) -> dict:
+def search_category(conn, user_id, *, q, scope_space_id=None, category_id=None) -> dict:
     norm = " ".join(_norm_terms(q))
-    items = _lots_in_categories(conn, _category_ids(conn, category_id, norm or ""))
+    items = _lots_in_categories(conn, user_id, _category_ids(conn, user_id, category_id, norm or ""))
     return {"mode": "category", "items": items, "spaces": []}
 
 
-def search_existence(conn, *, q, scope_space_id=None, category_id=None) -> dict:
-    items = _existence_lots(conn, _fuzzy_def_ids(conn, _norm_terms(q)), scope_space_id)
+def search_existence(conn, user_id, *, q, scope_space_id=None, category_id=None) -> dict:
+    items = _existence_lots(conn, user_id, _fuzzy_def_ids(conn, user_id, _norm_terms(q)), scope_space_id)
     return {"mode": "existence", "items": items, "spaces": []}
 
 
