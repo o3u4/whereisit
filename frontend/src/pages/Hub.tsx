@@ -5,8 +5,9 @@
  */
 
 import { useEffect, useMemo, useRef, useState } from 'react';
-import type { CSSProperties, KeyboardEvent, ReactNode } from 'react';
+import type { ChangeEvent, CSSProperties, KeyboardEvent, ReactNode } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
+import * as api from '../api/client';
 import { Icon, CDot, TYPE_ICON, type IconName } from '../components/icons';
 import { Wordmark, Seg, Switch, Sheet, StatusBadge, Kbd, EmptyState, ToastsHost } from '../components/ui';
 import { TabBar, TabLink, TabAction } from '../components/TabBar';
@@ -291,8 +292,7 @@ export default function Hub() {
           <header className="topglass glass in">
             <Wordmark />
             <div className="hd-group">
-              <LangToggle />
-              <button type="button" className="ibtn" aria-label="设置" onClick={() => setSettingsOpen(true)}>
+              <button type="button" className="ibtn" aria-label={t('nav.settings')} onClick={() => setSettingsOpen(true)}>
                 <Icon name="sliders" />
               </button>
               <Link className="btn btn--primary btn--sm hide-mobile" to="/record">
@@ -545,16 +545,6 @@ export default function Hub() {
   );
 }
 
-/* ------------------------------------------------ language demo chip ------ */
-function LangToggle() {
-  const [zh, setZh] = useState(true);
-  return (
-    <button type="button" className="chip chip--glass hide-mobile" onClick={() => setZh((v) => !v)}>
-      {zh ? 'EN' : '中'}
-    </button>
-  );
-}
-
 /* ------------------------------------------------ settings --------------- */
 function SettingsSheet({
   open,
@@ -566,26 +556,106 @@ function SettingsSheet({
   onManageCategories: () => void;
 }) {
   const toast = useToast((s) => s.push);
-  const [lang, setLang] = useState('zh');
-  const [theme, setTheme] = useState('light');
-  const [pin, setPin] = useState(false);
+  const reload = useCatalog((s) => s.load);
+  const { t, fmt, setLang } = useTr();
+  const [s, setS] = useState<api.SettingsDTO | null>(null);
+  const [freshToken, setFreshToken] = useState<string | null>(null);
+  const importRef = useRef<HTMLInputElement>(null);
 
-  const copy = async () => {
+  useEffect(() => {
+    if (!open) return;
+    setFreshToken(null);
+    api.fetchSettings().then(setS).catch(() => setS(null));
+  }, [open]);
+
+  const setLangPref = async (l: 'zh' | 'en') => {
+    setLang(l); // apply immediately (client preference)
     try {
-      await navigator.clipboard.writeText('http://192.168.31.14:8080');
-      toast('已复制局域网地址');
+      await api.saveSettings({ lang: l });
+      setS((p) => (p ? { ...p, lang: l } : p));
     } catch {
-      toast('复制失败，请手动复制');
+      /* server write is best-effort */
+    }
+  };
+
+  const copyLan = async () => {
+    if (!s) return;
+    try {
+      await navigator.clipboard.writeText(`http://${s.lan_url}`);
+      toast(t('set.copied'));
+    } catch {
+      toast(t('set.copyFail'));
+    }
+  };
+
+  const toggleToken = async (onTok: boolean) => {
+    try {
+      if (onTok) {
+        const { token } = await api.createAccessToken();
+        setFreshToken(token);
+        setS((p) => (p ? { ...p, token_enabled: true } : p));
+      } else {
+        await api.revokeAccessToken();
+        setFreshToken(null);
+        setS((p) => (p ? { ...p, token_enabled: false } : p));
+      }
+    } catch {
+      toast(t('set.tokenFail'));
+    }
+  };
+
+  const copyToken = async (tk: string) => {
+    try {
+      await navigator.clipboard.writeText(tk);
+      toast(t('set.copied'));
+    } catch {
+      toast(t('set.copyFail'));
+    }
+  };
+
+  const doExport = async () => {
+    try {
+      const data = await api.exportData();
+      const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `whereisit-${new Date().toISOString().slice(0, 10)}.json`;
+      a.click();
+      URL.revokeObjectURL(url);
+    } catch {
+      toast(t('set.exportFail'));
+    }
+  };
+
+  const onPickFile = async (e: ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    e.target.value = '';
+    if (!file) return;
+    try {
+      const text = await file.text();
+      const obj = JSON.parse(text) as Record<string, unknown>;
+      const counts = await api.importData(obj);
+      toast(
+        fmt('set.importDone', {
+          spaces: counts.spaces_inserted ?? 0,
+          defs: counts.defs_inserted ?? 0,
+          lots: counts.lots_inserted ?? 0,
+        }),
+      );
+      reload();
+    } catch (err) {
+      toast(fmt('set.importFail', { msg: err instanceof Error ? err.message : String(err) }));
     }
   };
 
   return (
-    <Sheet open={open} onClose={onClose} side="right" title="设置">
+    <Sheet open={open} onClose={onClose} side="right" title={t('set.title')}>
       <div>
-        <span className="field-label">语言</span>
+        <span className="field-label">{t('set.lang')}</span>
         <Seg
-          value={lang}
-          onChange={setLang}
+          value={s?.lang ?? 'zh'}
+          onChange={(v) => setLangPref(v as 'zh' | 'en')}
           options={[
             { value: 'zh', label: '简体中文' },
             { value: 'en', label: 'English' },
@@ -593,22 +663,7 @@ function SettingsSheet({
         />
       </div>
       <div>
-        <span className="field-label">
-          外观 <span className="hint">原型演示浅色</span>
-        </span>
-        <Seg
-          value={theme}
-          onChange={setTheme}
-          options={[
-            { value: 'light', label: '浅色' },
-            { value: 'dark', label: '深色' },
-            { value: 'auto', label: '跟随系统' },
-          ]}
-        />
-      </div>
-      <hr className="hr" />
-      <div>
-        <span className="field-label">局域网访问</span>
+        <span className="field-label">{t('set.lan')}</span>
         <div className="rowline between" style={{ gap: 8 }}>
           <code
             className="t-mono t-sm ellip"
@@ -621,61 +676,66 @@ function SettingsSheet({
               minWidth: 0,
             })}
           >
-            http://192.168.31.14:8080
+            {s ? `http://${s.lan_url}` : '…'}
           </code>
-          <button type="button" className="btn btn--soft btn--sm" onClick={copy}>
-            复制
+          <button type="button" className="btn btn--soft btn--sm" onClick={copyLan}>
+            {t('set.copy')}
           </button>
         </div>
+      </div>
+      <hr className="hr" />
+      <div>
+        <span className="field-label">{t('set.token')}</span>
         <div className="rowline between mt8">
-          <span className="t-sm">访问需口令</span>
-          <Switch on={pin} onChange={setPin} />
+          <span className="t-sm">{t('set.tokenProtect')}</span>
+          <Switch on={s?.token_enabled ?? false} onChange={toggleToken} />
         </div>
+        {freshToken ? (
+          <div className="col gap6 mt8">
+            <p className="t-sm t-muted" style={{ margin: 0 }}>
+              {t('set.tokenShow')}
+            </p>
+            <code
+              className="t-mono t-sm"
+              style={{
+                wordBreak: 'break-all',
+                background: 'rgb(255 255 255/0.6)',
+                border: '1px solid var(--border)',
+                borderRadius: 12,
+                padding: '9px 12px',
+              }}
+            >
+              {freshToken}
+            </code>
+            <button type="button" className="btn btn--soft btn--sm" onClick={() => void copyToken(freshToken)}>
+              {t('set.copy')}
+            </button>
+          </div>
+        ) : null}
       </div>
       <hr className="hr" />
       <div className="col gap6">
-        <span className="field-label">数据整理</span>
+        <span className="field-label">{t('set.data')}</span>
         <div className="rowline gap8">
-          <button type="button" className="btn btn--soft btn--sm" onClick={onManageCategories}>
-            分类管理
+          <button type="button" className="btn btn--soft btn--sm" onClick={() => void doExport()}>
+            {t('set.export')}
           </button>
-        </div>
-      </div>
-      <hr className="hr" />
-      <div className="col gap6">
-        <span className="field-label">搜索与解析引擎</span>
-        <div className="between">
-          <span className="t-sm">内置全文搜索</span>
-          <span className="tag tag--type" style={V({ ['--tc']: 'var(--accent)' })}>
-            <CDot />FTS5 已启用
-          </span>
-        </div>
-        <div className="between">
-          <span className="t-sm">语义 / 向量搜索</span>
-          <span className="tag" style={V({ background: 'var(--gone-soft)', color: 'var(--gone)' })}>
-            预留接口
-          </span>
-        </div>
-        <div className="between">
-          <span className="t-sm">拍照 / 语音登记（LLM）</span>
-          <span className="tag" style={V({ background: 'var(--gone-soft)', color: 'var(--gone)' })}>
-            1.x 规划
-          </span>
-        </div>
-      </div>
-      <hr className="hr" />
-      <div className="rowline between">
-        <span className="t-sm">数据备份</span>
-        <div className="hd-group">
-          <button type="button" className="btn btn--ghost btn--sm" onClick={() => toast('演示版不支持导出')}>
-            导出
+          <button type="button" className="btn btn--soft btn--sm" onClick={() => importRef.current?.click()}>
+            {t('set.import')}
           </button>
-          <button type="button" className="btn btn--ghost btn--sm" onClick={() => toast('演示版不支持导入')}>
-            导入
-          </button>
+          <input
+            ref={importRef}
+            type="file"
+            accept="application/json,.json"
+            style={{ display: 'none' }}
+            onChange={(e) => void onPickFile(e)}
+          />
         </div>
+        <button type="button" className="btn btn--ghost btn--sm" onClick={onManageCategories}>
+          {t('set.cats')}
+        </button>
       </div>
-      <p className="t-xs t-faint">whereisit prototype · M1 数据模型演示</p>
+      <p className="t-xs t-faint">{t('set.foot')}</p>
     </Sheet>
   );
 }

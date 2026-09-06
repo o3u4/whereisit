@@ -15,6 +15,7 @@ import type {
   SpaceHitDTO,
   SpaceNodeDTO,
 } from './types';
+import { getToken, useAuth } from '../stores/auth';
 
 const BASE = '/api';
 
@@ -22,10 +23,14 @@ export class ApiError extends Error {}
 
 async function request<T>(method: string, path: string, body?: unknown): Promise<T> {
   let res: Response;
+  const headers: Record<string, string> =
+    body === undefined ? {} : { 'Content-Type': 'application/json' };
+  const token = getToken();
+  if (token) headers.Authorization = `Bearer ${token}`;
   try {
     res = await fetch(`${BASE}${path}`, {
       method,
-      headers: body === undefined ? undefined : { 'Content-Type': 'application/json' },
+      headers,
       body: body === undefined ? undefined : JSON.stringify(body),
     });
   } catch {
@@ -33,6 +38,10 @@ async function request<T>(method: string, path: string, body?: unknown): Promise
   }
   const json: unknown = await res.json().catch(() => ({}));
   if (!res.ok) {
+    if (res.status === 401) {
+      // surface the token gate (App.tsx listens)
+      useAuth.getState().setUnauthorized(true);
+    }
     const msg = (json && typeof json === 'object' && 'error' in json && typeof json.error === 'string')
       ? json.error
       : `请求失败 (${res.status})`;
@@ -41,6 +50,40 @@ async function request<T>(method: string, path: string, body?: unknown): Promise
   const data = (json as { data?: T } | null)?.data;
   if (data === undefined) throw new ApiError('后端响应缺少 data');
   return data;
+}
+
+/* ---- settings + access token + backup ------------------------------------- */
+export interface SettingsDTO {
+  lang: string;
+  token_enabled: boolean;
+  lan_url: string;
+}
+
+export async function fetchSettings(): Promise<SettingsDTO> {
+  return request<SettingsDTO>('GET', '/settings');
+}
+
+export async function saveSettings(patch: { lang?: 'zh' | 'en'; token_enabled?: boolean }): Promise<SettingsDTO> {
+  return request<SettingsDTO>('PUT', '/settings', patch);
+}
+
+export async function createAccessToken(): Promise<{ token: string }> {
+  return request<{ token: string }>('POST', '/settings/token');
+}
+
+export async function revokeAccessToken(): Promise<{ revoked: boolean }> {
+  return request<{ revoked: boolean }>('DELETE', '/settings/token');
+}
+
+/** full round-trippable backup object ({format, version, exported_at, data}) */
+export async function exportData<T = Record<string, unknown>>(): Promise<T> {
+  return request<T>('GET', '/export');
+}
+
+export async function importData<T = Record<string, unknown>>(
+  payload: T,
+): Promise<Record<string, number>> {
+  return request<Record<string, number>>('POST', '/import?mode=merge', payload);
 }
 
 function lotToItem(lot: LotDTO): Item {
