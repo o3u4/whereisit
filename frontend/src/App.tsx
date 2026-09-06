@@ -154,7 +154,7 @@ function TokenGate({ onUnlock }: { onUnlock: () => void }) {
                 <button
                   type="button"
                   className="btn btn--soft btn--sm"
-                  onClick={() => downloadText('whereisit.token', regToken.token + '\n')}
+                  onClick={() => downloadText(`${regToken.username}.token`, regToken.token + '\n')}
                 >
                   {t('set.download')}
                 </button>

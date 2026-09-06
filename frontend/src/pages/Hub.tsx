@@ -823,7 +823,7 @@ function SettingsSheet({
               <button
                 type="button"
                 className="btn btn--soft btn--sm"
-                onClick={() => downloadText(`whereisit.token`, currentToken + '\n')}
+                onClick={() => downloadText(`${s?.username ?? 'whereisit'}.token`, currentToken + '\n')}
               >
                 {t('set.download')}
               </button>
@@ -917,7 +917,7 @@ function SettingsSheet({
                   <button
                     type="button"
                     className="btn btn--soft btn--sm"
-                    onClick={() => downloadText('whereisit.token', justCreated.token + '\n')}
+                    onClick={() => downloadText(`${justCreated.username}.token`, justCreated.token + '\n')}
                   >
                     {t('set.download')}
                   </button>

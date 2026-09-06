@@ -182,6 +182,39 @@ def test_registration_auto_signup_then_manual_lock(client):
     assert client.post("/api/register", json={"username": "dave"}).status_code == 403
 
 
+def test_import_restores_nested_tree_and_category(client):
+    # build: 家 > 卧室 > 床头柜, with an item in the leaf under a category
+    top = client.post("/api/spaces", json={"name": "家", "type_tag": "room"}).json()["data"]
+    mid = client.post("/api/spaces", json={"name": "卧室", "type_tag": "room", "parent_id": top["id"]}).json()["data"]
+    leaf = client.post("/api/spaces", json={"name": "床头柜", "type_tag": "furniture", "parent_id": mid["id"]}).json()["data"]
+    client.post(
+        "/api/items/register", json={"name": "充电宝", "space_id": leaf["id"], "category": "电子"}
+    )
+    assert len(client.get("/api/spaces/tree").json()["data"]) == 1
+
+    export = client.get("/api/export").json()["data"]
+
+    # wipe to an empty world, then restore from the export (id-remap path)
+    from app.db.engine import tx
+
+    with tx() as conn:
+        for t in ["attrs", "item_lots", "item_aliases", "item_defs", "categories", "spaces"]:
+            conn.execute(f"DELETE FROM {t}")
+
+    assert client.post("/api/import", json=export).status_code == 200
+
+    tree = client.get("/api/spaces/tree").json()["data"]
+    assert len(tree) == 1 and tree[0]["name"] == "家"
+    kids = tree[0]["children"]
+    assert len(kids) == 1 and kids[0]["name"] == "卧室"
+    grand = kids[0]["children"]
+    assert len(grand) == 1 and grand[0]["name"] == "床头柜"
+
+    items = client.get("/api/items").json()["data"]
+    assert len(items) == 1 and items[0]["name"] == "充电宝"
+    assert items[0]["category"] == "电子"
+
+
 def test_delete_user_guards_and_removes_data(client):
     root = _root_token(client)
     h_root = {"Authorization": f"Bearer {root}"}

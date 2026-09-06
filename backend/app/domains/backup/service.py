@@ -69,7 +69,8 @@ def import_data(conn: sqlite3.Connection, user_id: int, payload: dict) -> dict:
             for c in copy_cols:
                 v = row.get(c)
                 if c in translation:
-                    v = translation[c].get(v, v)
+                    # missing entry -> None (orphan FK becomes NULL, not a stale id)
+                    v = translation[c].get(v)
                 values.append(v)
             values.append(user_id)
             cur = conn.execute(f"INSERT INTO {table} ({cols}) VALUES ({ph})", values)
@@ -77,30 +78,50 @@ def import_data(conn: sqlite3.Connection, user_id: int, payload: dict) -> dict:
             counts[count_key] += 1
         return idmap
 
-    def remap(table, col, idmap) -> None:
-        for old, new in idmap.items():
-            conn.execute(
-                f"UPDATE {table} SET {col} = ? WHERE {col} = ? AND owner_id = ?",
-                (new, old, user_id),
-            )
+    def copy_tree(table, rows, copy_cols, count_key) -> dict:
+        """Insert self-referencing tree rows (spaces/categories) with parent_id
+        NULL first (fresh ids), then re-link each child to its parent's new id —
+        order-independent and immune to cross-user id collisions."""
+        idmap: dict[int, int] = {}
+        parent_of: dict[int, int] = {}
+        cols = ",".join(copy_cols + ["owner_id"])
+        ph = ",".join("?" * (len(copy_cols) + 1))
+        for row in rows:
+            if "id" not in row:
+                continue
+            values = [row.get(c) for c in copy_cols] + [user_id]
+            cur = conn.execute(f"INSERT INTO {table} ({cols}) VALUES ({ph})", values)
+            old = int(row["id"])
+            idmap[old] = int(cur.lastrowid)
+            counts[count_key] += 1
+            p = row.get("parent_id")
+            if p is not None:
+                parent_of[old] = int(p)
+        for old_child, old_parent in parent_of.items():
+            new_parent = idmap.get(old_parent)
+            if new_parent is not None:
+                conn.execute(
+                    f"UPDATE {table} SET parent_id = ? WHERE id = ?",
+                    (new_parent, idmap[old_child]),
+                )
+        return idmap
 
-    spaces_map = copy(
+    spaces_map = copy_tree(
         "spaces", data.get("spaces", []),
         ["name", "name_norm", "ord", "type_tag", "layout_json", "created_at", "updated_at"], "spaces",
     )
-    remap("spaces", "parent_id", spaces_map)
 
-    cats_map = copy(
+    cats_map = copy_tree(
         "categories", data.get("categories", []),
         ["name", "name_norm", "ord", "created_at"], "categories",
     )
-    remap("categories", "parent_id", cats_map)
 
+    # defs point at categories (not self-referential) — translate at insert time
     defs_map = copy(
         "item_defs", data.get("defs", []),
-        ["name", "name_norm", "unit", "notes", "created_at", "updated_at"], "defs",
+        ["name", "name_norm", "category_id", "unit", "notes", "created_at", "updated_at"], "defs",
+        maps={"category_id": cats_map},
     )
-    remap("item_defs", "category_id", cats_map)
 
     copy(
         "item_aliases", data.get("aliases", []),
