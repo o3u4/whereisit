@@ -10,6 +10,7 @@ import { Icon, TYPE_ICON } from './icons';
 import { chainOf, pathNames } from '../lib/tree';
 import type { DirNode } from '../lib/types';
 import { useCatalog } from '../stores/catalog';
+import { useTr } from '../i18n';
 
 function flattenNodes(nodes: DirNode[]): DirNode[] {
   const out: DirNode[] = [];
@@ -28,7 +29,7 @@ export function LocationPicker({
   onClose,
   title,
   value,
-  confirmLabel = '就放这里',
+  confirmLabel,
   onCommit,
 }: {
   open: boolean;
@@ -39,6 +40,8 @@ export function LocationPicker({
   onCommit: (nodeId: string) => void;
 }) {
   const tree = useCatalog((s) => s.tree);
+  const { t, fmt } = useTr();
+  const confirm = confirmLabel ?? t('loc.confirm');
   const [sel, setSel] = useState<string | null>(value);
   const [q, setQ] = useState('');
   const [expanded, setExpanded] = useState<Record<string, boolean>>({});
@@ -89,7 +92,7 @@ export function LocationPicker({
             <span
               className={`rec-tchev${isOpen ? ' rec-tchev--open' : ''}`}
               role="button"
-              aria-label={isOpen ? '收起' : '展开'}
+              aria-label={isOpen ? t('loc.collapse') : t('loc.expand')}
               onClick={(e) => {
                 e.stopPropagation();
                 toggle(n.id);
@@ -130,7 +133,7 @@ export function LocationPicker({
       footer={
         <div className="rec-sheet-foot">
           <button type="button" className="btn btn--primary btn--lg" onClick={commit} disabled={!sel}>
-            {confirmLabel}
+            {confirm}
           </button>
         </div>
       }
@@ -141,9 +144,9 @@ export function LocationPicker({
           <input
             ref={inputRef}
             className="field"
-            placeholder="搜房间 / 柜子 / 层格…"
+            placeholder={t('loc.searchPh')}
             autoComplete="off"
-            aria-label="筛选位置"
+            aria-label={t('loc.filterAria')}
             value={q}
             onChange={(e) => setQ(e.target.value)}
             onKeyDown={(e) => {
@@ -157,14 +160,14 @@ export function LocationPicker({
             : tree.map((n) => nodeRow(n, 0))}
           {filtered && filtered.length === 0 ? (
             <div className="empty-state" style={{ marginTop: 6 }}>
-              <b>没有「{query}」</b>
-              <span>换个词试试</span>
+              <b>{fmt('loc.notFound', { q: query })}</b>
+              <span>{t('loc.notFoundHint')}</span>
             </div>
           ) : null}
           {!filtered && all.length === 0 ? (
             <div className="empty-state" style={{ marginTop: 6 }}>
-              <b>还没有任何位置</b>
-              <span>先在目录里建一个容器</span>
+              <b>{t('loc.none')}</b>
+              <span>{t('loc.noneHint')}</span>
             </div>
           ) : null}
         </div>

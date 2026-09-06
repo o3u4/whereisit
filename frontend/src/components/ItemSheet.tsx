@@ -13,11 +13,12 @@ import { useEffect, useState } from 'react';
 import type { CSSProperties } from 'react';
 import { Sheet, Stepper, StatusBadge } from './ui';
 import { Icon } from './icons';
-import { catMeta, STATUS } from '../lib/meta';
+import { catMeta } from '../lib/meta';
 import { pathNames } from '../lib/tree';
 import type { Item, ItemStatus } from '../lib/types';
 import { useCatalog } from '../stores/catalog';
 import { useToast } from '../stores/toast';
+import { useTr } from '../i18n';
 import { LocationPicker } from './LocationPicker';
 
 const V = (o: Record<string, string | number>): CSSProperties => o as CSSProperties;
@@ -43,6 +44,7 @@ export function ItemSheet({ item, open, onClose }: { item: Item | null; open: bo
   const deleteItem = useCatalog((s) => s.deleteItem);
   const undo = useCatalog((s) => s.undo);
   const toast = useToast((s) => s.push);
+  const { t, fmt } = useTr();
 
   const [armed, setArmed] = useState(false);
   const [catOpen, setCatOpen] = useState(false);
@@ -82,7 +84,7 @@ export function ItemSheet({ item, open, onClose }: { item: Item | null; open: bo
 
   const saveNotes = async () => {
     await setNotes(item.slug, notesText);
-    toast('备注已保存');
+    toast(t('item.notesSaved'));
     setNotesOpen(false);
   };
 
@@ -94,8 +96,7 @@ export function ItemSheet({ item, open, onClose }: { item: Item | null; open: bo
 
   const pickStatus = async (s: ItemStatus) => {
     await setStatus(item.slug, s);
-    const verb = s === 'present' ? '在' : s === 'lent' ? '借出' : '用完';
-    toast(`已标记「${item.name}」${verb}`);
+    toast(fmt('item.statusToast', { name: item.name, verb: t('status.' + s) }));
     setStOpen(false);
   };
 
@@ -103,13 +104,13 @@ export function ItemSheet({ item, open, onClose }: { item: Item | null; open: bo
     const r = await commit(item.slug, { spot: nodeId });
     if (r) {
       const leaf = pathNames(tree, nodeId).join(' / ');
-      toast(`已把「${item.name}」移到 ~/ ${leaf}`);
+      toast(fmt('item.moved', { name: item.name, leaf }));
     }
     setMoveOpen(false);
   };
 
   const pickCat = async (catId: number, name: string) => {
-    if (await changeCategory(item.defId, catId)) toast(`已改到「${name}」，同类一起生效`);
+    if (await changeCategory(item.defId, catId)) toast(fmt('item.catChanged', { name }));
     setCatOpen(false);
   };
 
@@ -117,13 +118,13 @@ export function ItemSheet({ item, open, onClose }: { item: Item | null; open: bo
     const n = newCat.trim();
     if (!n) return;
     if (await addCategory(n)) {
-      toast(`已新增「${n}」`);
+      toast(fmt('item.catAdded', { name: n }));
       const fresh = useCatalog.getState().categories.find((c) => c.name === n);
       if (fresh) await changeCategory(item.defId, fresh.id);
       setCatOpen(false);
       setNewCat('');
     } else {
-      toast('新增分类失败');
+      toast(t('item.catAddFail'));
     }
   };
 
@@ -136,7 +137,7 @@ export function ItemSheet({ item, open, onClose }: { item: Item | null; open: bo
   const saveAttr = async () => {
     if (attrEditKey == null) return;
     if (await setDefAttr(item.defId, attrEditKey, attrDraft)) {
-      toast(`已保存「${attrEditKey}」`);
+      toast(fmt('item.attrSaved', { key: attrEditKey }));
       setAttrEditKey(null);
       setAttrDraft('');
     }
@@ -145,7 +146,7 @@ export function ItemSheet({ item, open, onClose }: { item: Item | null; open: bo
   const removeAttr = async () => {
     if (attrRemoveKey == null) return;
     if (await removeDefAttr(item.defId, attrRemoveKey)) {
-      toast(`已移除「${attrRemoveKey}」`);
+      toast(fmt('item.attrRemoved', { key: attrRemoveKey }));
       setAttrRemoveKey(null);
       setAttrEditKey(null);
     }
@@ -155,7 +156,7 @@ export function ItemSheet({ item, open, onClose }: { item: Item | null; open: bo
     const k = newKey.trim();
     if (!k) return;
     if (await setDefAttr(item.defId, k, newVal)) {
-      toast(`已添加「${k}」`);
+      toast(fmt('item.attrAdded', { key: k }));
       setAddOpen(false);
       setNewKey('');
       setNewVal('');
@@ -164,10 +165,10 @@ export function ItemSheet({ item, open, onClose }: { item: Item | null; open: bo
 
   const onDelete = async () => {
     if (await deleteItem(item.slug)) {
-      toast(`已删除「${item.name}」`, undefined, '撤销', () => void undo());
+      toast(fmt('item.deleted', { name: item.name }), undefined, t('undo'), () => void undo());
       onClose();
     } else {
-      toast('删除失败');
+      toast(t('item.deleteFail'));
       setArmed(false);
     }
   };
@@ -175,10 +176,10 @@ export function ItemSheet({ item, open, onClose }: { item: Item | null; open: bo
   const deleteBtn = armed ? (
     <div className="row gap8" style={{ width: '100%' }}>
       <button type="button" className="btn btn--danger btn--lg" style={{ flex: 1 }} onClick={() => void onDelete()}>
-        确认删除
+        {t('item.confirmDelete')}
       </button>
       <button type="button" className="btn btn--ghost btn--lg" style={{ flex: 1 }} onClick={() => setArmed(false)}>
-        取消
+        {t('app.cancel')}
       </button>
     </div>
   ) : (
@@ -189,7 +190,7 @@ export function ItemSheet({ item, open, onClose }: { item: Item | null; open: bo
       onClick={() => setArmed(true)}
       onMouseLeave={() => setArmed(false)}
     >
-      删除这件 {item.name}
+      {fmt('item.deleteThis', { name: item.name })}
     </button>
   );
 
@@ -208,18 +209,18 @@ export function ItemSheet({ item, open, onClose }: { item: Item | null; open: bo
               style={{ minWidth: 0, flex: '1' }}
             />
             <button type="button" className="btn btn--soft btn--sm" onClick={() => void saveAttr()}>
-              保存
+              {t('app.save')}
             </button>
             <button type="button" className="btn btn--ghost btn--sm" onClick={() => setAttrEditKey(null)}>
-              取消
+              {t('app.cancel')}
             </button>
             {attrRemoveKey === k ? (
               <button type="button" className="btn btn--danger btn--sm" onClick={() => void removeAttr()}>
-                移除
+                {t('item.remove')}
               </button>
             ) : (
               <button type="button" className="btn btn--ghost btn--sm" onClick={() => setAttrRemoveKey(k)}>
-                移除…
+                {t('item.removeAsk')}
               </button>
             )}
           </span>
@@ -230,7 +231,7 @@ export function ItemSheet({ item, open, onClose }: { item: Item | null; open: bo
         <span className="k">{k}</span>
         <span className="v">
           <button type="button" className={`attr-val${v === '' ? ' t-muted' : ''}`} onClick={() => openAttrEdit(k, v)}>
-            {v !== '' ? v : '＋ 填写'}
+            {v !== '' ? v : t('item.attrFill')}
           </button>
         </span>
       </div>
@@ -241,7 +242,7 @@ export function ItemSheet({ item, open, onClose }: { item: Item | null; open: bo
     <div className="row gap8" style={{ alignItems: 'center' }}>
       <input
         className="field"
-        placeholder="属性名，如 颜色 / 型号"
+        placeholder={t('item.attrNamePh')}
         value={newKey}
         onChange={(e) => setNewKey(e.target.value)}
         autoFocus
@@ -250,7 +251,7 @@ export function ItemSheet({ item, open, onClose }: { item: Item | null; open: bo
       />
       <input
         className="field"
-        placeholder="值（可留空稍后填）"
+        placeholder={t('item.attrValPh')}
         value={newVal}
         onChange={(e) => setNewVal(e.target.value)}
         onKeyDown={(e) => {
@@ -260,16 +261,16 @@ export function ItemSheet({ item, open, onClose }: { item: Item | null; open: bo
         style={{ minWidth: 0, flex: '2' }}
       />
       <button type="button" className="btn btn--soft btn--sm" disabled={!newKey.trim()} onClick={() => void addAttr()}>
-        添加
+        {t('item.add')}
       </button>
       <button type="button" className="btn btn--ghost btn--sm" onClick={() => { setAddOpen(false); setNewKey(''); setNewVal(''); }}>
-        取消
+        {t('app.cancel')}
       </button>
     </div>
   ) : (
     <button type="button" className="addattr-btn" onClick={() => { closeEditors(); setAddOpen(true); }}>
       <Icon name="plus" size={14} />
-      添加属性
+      {t('item.addAttr')}
     </button>
   );
 
@@ -291,7 +292,7 @@ export function ItemSheet({ item, open, onClose }: { item: Item | null; open: bo
           <div className="item-img">
             <span className="item-img-ghost">
               <Icon name="image" size={28} />
-              <span className="t-xs t-muted">图片预览 · 后续支持物品图片 / GIF</span>
+              <span className="t-xs t-muted">{t('item.imgHint')}</span>
             </span>
           </div>
           <div className="row gap10" style={{ alignItems: 'center' }}>
@@ -314,16 +315,16 @@ export function ItemSheet({ item, open, onClose }: { item: Item | null; open: bo
               className="st-edit"
               onClick={() => { closeEditors(); setStOpen(true); }}
               aria-haspopup="dialog"
-              aria-label={`更改状态（当前：${STATUS[item.status].label}）`}
+              aria-label={`${t('item.chgStatus')}（${t('status.' + item.status)}）`}
             >
-              <StatusBadge cls={item.status} label={STATUS[item.status].label} />
+              <StatusBadge cls={item.status} label={t('status.' + item.status)} />
               <Icon name="chev" size={13} style={V({ flex: 'none', color: 'var(--faint)' })} />
             </button>
           </div>
 
           <div className="brw-dl">
             <div className="kv">
-              <span className="k">位置</span>
+              <span className="k">{t('item.pos')}</span>
               <span className="v">
                 <button type="button" className="kv-edit" onClick={() => { closeEditors(); setMoveOpen(true); }}>
                   <span className="mono-path">{path}</span>
@@ -332,7 +333,7 @@ export function ItemSheet({ item, open, onClose }: { item: Item | null; open: bo
               </span>
             </div>
             <div className="kv">
-              <span className="k">数量</span>
+              <span className="k">{t('item.qty')}</span>
               <span className="v">
                 <span className="rowline gap8">
                   <Stepper value={qty} onChange={onQty} min={1} />
@@ -341,7 +342,7 @@ export function ItemSheet({ item, open, onClose }: { item: Item | null; open: bo
               </span>
             </div>
             <div className="kv">
-              <span className="k">类别</span>
+              <span className="k">{t('item.cat')}</span>
               <span className="v">
                 <button
                   type="button"
@@ -364,29 +365,29 @@ export function ItemSheet({ item, open, onClose }: { item: Item | null; open: bo
             </div>
 
             <div className="kv">
-              <span className="k">备注</span>
+              <span className="k">{t('item.notes')}</span>
               <span className="v">
                 {notesOpen ? (
                   <span className="rowline gap8">
                     <input
                       className="field"
-                      placeholder="给这条备注一下…"
+                      placeholder={t('item.notePh')}
                       value={notesText}
                       onChange={(e) => setNotesText(e.target.value)}
                       autoFocus
                       style={{ minWidth: 0, flex: '1' }}
                     />
                     <button type="button" className="btn btn--soft btn--sm" onClick={() => void saveNotes()}>
-                      保存
+                      {t('app.save')}
                     </button>
                     <button type="button" className="btn btn--ghost btn--sm" onClick={() => setNotesOpen(false)}>
-                      取消
+                      {t('app.cancel')}
                     </button>
                   </span>
                 ) : (
                   <button type="button" className="kv-edit" onClick={openNotes}>
                     <span className={item.notes ? 'note-txt' : 't-muted'}>
-                      {item.notes ? item.notes : '＋ 添加备注'}
+                      {item.notes ? item.notes : t('item.addNote')}
                     </span>
                     <Icon name="chev" size={14} style={V({ flex: 'none', color: 'var(--faint)' })} />
                   </button>
@@ -398,7 +399,7 @@ export function ItemSheet({ item, open, onClose }: { item: Item | null; open: bo
       </Sheet>
 
       {stOpen ? (
-        <Sheet open={stOpen} onClose={() => setStOpen(false)} side="bottom" title="更改状态" grab>
+        <Sheet open={stOpen} onClose={() => setStOpen(false)} side="bottom" title={t('item.chgStatus')} grab>
           <div className="col gap6">
             {STATUS_ORDER.map((s) => {
               const on = item.status === s;
@@ -414,10 +415,10 @@ export function ItemSheet({ item, open, onClose }: { item: Item | null; open: bo
                     <i className="cdot" style={{ background: ST_TINT[s], width: 10, height: 10 }} />
                   </span>
                   <span className="rr-main">
-                    <span className="rr-name">{STATUS[s].label}</span>
+                    <span className="rr-name">{t('status.' + s)}</span>
                   </span>
                   <span className="t-xs t-faint">
-                    {s === 'present' ? '在记录处' : s === 'lent' ? '借出后仍可搜索' : '用完 · 记为消耗'}
+                    {s === 'present' ? t('item.stPresentHint') : s === 'lent' ? t('item.stLentHint') : t('item.stConsumedHint')}
                   </span>
                 </button>
               );
@@ -427,11 +428,11 @@ export function ItemSheet({ item, open, onClose }: { item: Item | null; open: bo
       ) : null}
 
       {catOpen ? (
-        <Sheet open={catOpen} onClose={() => setCatOpen(false)} side="bottom" title="更改类别" grab>
+        <Sheet open={catOpen} onClose={() => setCatOpen(false)} side="bottom" title={t('item.chgCat')} grab>
           <div className="rowline gap8">
             <input
               className="field"
-              placeholder="新类别名称"
+              placeholder={t('item.newCatPh')}
               value={newCat}
               onChange={(e) => setNewCat(e.target.value)}
               onKeyDown={(e) => {
@@ -439,7 +440,7 @@ export function ItemSheet({ item, open, onClose }: { item: Item | null; open: bo
               }}
             />
             <button type="button" className="btn btn--primary btn--sm" onClick={() => void addNewCat()} disabled={!newCat.trim()}>
-              ＋ 新增
+              {t('item.addCat')}
             </button>
           </div>
           <div className="col gap6">
@@ -459,11 +460,11 @@ export function ItemSheet({ item, open, onClose }: { item: Item | null; open: bo
                   <span className="rr-main">
                     <span className="rr-name">{c.name}</span>
                   </span>
-                  <span className="t-xs t-faint">{c.itemCount} 件</span>
+                  <span className="t-xs t-faint">{fmt('item.catCount', { n: c.itemCount })}</span>
                 </button>
               );
             })}
-            {categories.length === 0 ? <p className="t-sm t-faint">还没有分类，可在上方新增。</p> : null}
+            {categories.length === 0 ? <p className="t-sm t-faint">{t('item.catEmpty')}</p> : null}
           </div>
         </Sheet>
       ) : null}
@@ -471,9 +472,9 @@ export function ItemSheet({ item, open, onClose }: { item: Item | null; open: bo
       <LocationPicker
         open={moveOpen}
         onClose={() => setMoveOpen(false)}
-        title="挪到哪儿？"
+        title={t('item.chgMove')}
         value={item.spot}
-        confirmLabel="挪到这里"
+        confirmLabel={t('item.moveConfirm')}
         onCommit={(id) => void onMove(id)}
       />
     </>

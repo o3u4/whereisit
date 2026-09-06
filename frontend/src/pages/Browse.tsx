@@ -14,11 +14,12 @@ import { Icon, TYPE_ICON } from '../components/icons';
 import { Wordmark, Seg, StatusBadge, ToastsHost } from '../components/ui';
 import { TabBar, TabLink } from '../components/TabBar';
 import { ItemSheet } from '../components/ItemSheet';
-import { catMeta, STATUS, TYPE_TINT } from '../lib/meta';
+import { catMeta, TYPE_TINT } from '../lib/meta';
 import { chainOf, countItemsIn, dirById, directItemsIn, pathNames } from '../lib/tree';
 import type { DirNode, Item } from '../lib/types';
 import { useCatalog } from '../stores/catalog';
 import { useToast } from '../stores/toast';
+import { useTr } from '../i18n';
 
 const V = (o: Record<string, string | number>): CSSProperties => o as CSSProperties;
 
@@ -27,6 +28,7 @@ type Drag = { kind: 'folder' | 'item'; id: string };
 
 export default function Browse() {
   const navigate = useNavigate();
+  const { t, fmt } = useTr();
   const [search] = useSearchParams();
   const toast = useToast((s) => s.push);
 
@@ -136,7 +138,7 @@ export default function Browse() {
     }
     let ok = 0;
     for (const defId of targets) if (await mergeDefs(keep.defId, defId)) ok += 1;
-    if (ok > 0) toast(`已并入 ${ok} 个 →「${keep.name}」，同位置数量自动相加`);
+    if (ok > 0) toast(fmt('browse.mergeToast', { n: ok, name: keep.name }));
     exitMerge();
   };
 
@@ -201,13 +203,13 @@ export default function Browse() {
       const it = itemOf(d.id);
       if (!it || it.spot === targetId) return;
       moveItem(d.id, targetId);
-      toast(`已把「${it.name}」挪到 ~/…/${tName}`);
+      toast(fmt('browse.movedToast', { name: it.name, target: tName }));
       goDir(targetId);
     } else {
       const node = dirById(tree, d.id);
       if (!node) return;
       moveDir(d.id, targetId);
-      toast(`已把「${node.name}」并入 ~/…/${tName}`);
+      toast(fmt('browse.dirMergedToast', { name: node.name, target: tName }));
       setExpanded((e) => ({ ...e, [targetId]: true }));
     }
   };
@@ -239,7 +241,7 @@ export default function Browse() {
         if (src) {
           void (async () => {
             if (await mergeDefs(t.defId, src.defId)) {
-              toast(`已把「${src.name}」并入「${t.name}」· 同位置数量相加`);
+              toast(fmt('browse.itemMergedToast', { src: src.name, dst: t.name }));
             }
           })();
         }
@@ -252,7 +254,7 @@ export default function Browse() {
   });
 
   /* -------- small render helpers ---------------------------------------- */
-  const stBadge = (it: Item) => <StatusBadge cls={it.status} label={STATUS[it.status].label} />;
+  const stBadge = (it: Item) => <StatusBadge cls={it.status} label={t('status.' + it.status)} />;
   const catColor = (it: Item) => catMeta(it.cat).tint;
   const catLabel = (it: Item) => catMeta(it.cat).label;
 
@@ -262,7 +264,7 @@ export default function Browse() {
     const idx = chain.findIndex((n) => n.id === cur);
     if (idx < 0) return '~/ ' + chain.map((n) => n.name).join(' / ');
     const rest = chain.slice(idx + 1);
-    return rest.length ? '~/ ' + rest.map((n) => n.name).join(' / ') : '就在这里';
+    return rest.length ? '~/ ' + rest.map((n) => n.name).join(' / ') : t('browse.here');
   };
 
   const dirIcon = (n: DirNode) => <Icon name={TYPE_ICON[n.type]} />;
@@ -281,7 +283,7 @@ export default function Browse() {
               type="button"
               className={`tr-chev${isOpen ? ' open' : ''}`}
               onClick={() => toggle(n.id)}
-              aria-label={isOpen ? `收起 ${n.name}` : `展开 ${n.name}`}
+              aria-label={isOpen ? fmt('browse.collapse', { name: n.name }) : fmt('browse.expand', { name: n.name })}
             >
               <Icon name="chev" />
             </button>
@@ -309,7 +311,7 @@ export default function Browse() {
   /* -------- spine -------------------------------------------------------- */
   const crumbChain = cur ? chainOf(tree, cur) : [];
   const spine = (
-    <nav className="spine" aria-label="当前位置">
+    <nav className="spine" aria-label={t('browse.spineAria')}>
       <button type="button" className="sseg sseg--root" onClick={() => goDir(null)}>
         ~/
       </button>
@@ -343,7 +345,7 @@ export default function Browse() {
 
   const rootGrid = (
     <>
-      {sectionHead('顶层场景', `${tree.length} 个 · 每个都是一条路径的开头`)}
+      {sectionHead(t('browse.topScenes'), fmt('browse.topScenesNote', { n: tree.length }))}
       <div className="grid-scenes">
         {tree.map((sc) => {
           const tint = {
@@ -360,11 +362,11 @@ export default function Browse() {
             >
               <span className="top">
                 <span className="glyph">{dirIcon(sc)}</span>
-                <span className="cnt">{cnt} 件</span>
+                <span className="cnt">{fmt('browse.itemsCount', { n: cnt })}</span>
               </span>
               <span className="nm">{sc.name}</span>
               <span className="sub">
-                {sc.kids.length} 个子容器{sc.layout?.group ? ` · ${sc.layout.group}` : ''}
+                {fmt('browse.subCount', { n: sc.kids.length })}{sc.layout?.group ? ` · ${sc.layout.group}` : ''}
               </span>
             </Link>
           );
@@ -381,14 +383,14 @@ export default function Browse() {
       <span className="tt">
         <b>{curNode.name}</b>
         <span className="t-mono sub">
-          {crumbChain.length > 1 ? '~/' + pathNames(tree, cur).join('/') : '顶层场景'}
+          {crumbChain.length > 1 ? '~/' + pathNames(tree, cur).join('/') : t('browse.topScenes')}
         </span>
       </span>
       <span className="spacer" />
       <span className="brw-counts hide-mobile">
-        <span className="badge badge--count">整棵 {countItemsIn(tree, items, cur)} 件</span>
+        <span className="badge badge--count">{fmt('browse.subtreeCount', { n: countItemsIn(tree, items, cur) })}</span>
         {curNode.kids.length ? (
-          <span className="badge badge--count">{curNode.kids.length} 个子空间</span>
+          <span className="badge badge--count">{fmt('browse.subspaces', { n: curNode.kids.length })}</span>
         ) : null}
       </span>
     </div>
@@ -397,11 +399,11 @@ export default function Browse() {
   const emptyLeaf = (
     <div className="glass-card brw-empty">
       <Icon name="box" />
-      <b>这里还空着</b>
-      <p>这是路径的末端。东西还没登记？把它放到这层，路径就记下了。</p>
+      <b>{t('browse.emptyTitle')}</b>
+      <p>{t('browse.emptyHint')}</p>
       <Link className="btn btn--primary btn--sm" to={`/record${curQS}`}>
         <Icon name="plus" size={16} />
-        放个东西
+        {t('browse.place')}
       </Link>
     </div>
   );
@@ -423,7 +425,7 @@ export default function Browse() {
         <span className="ir-sub">
           <span className="mono-path">{relMono(it)}</span>
           {it.alias && it.alias !== it.name ? (
-            <span className="ellip t-xs t-muted">别名 · {it.alias}</span>
+            <span className="ellip t-xs t-muted">{fmt('browse.alias', { name: it.alias })}</span>
           ) : null}
         </span>
       </span>
@@ -439,15 +441,15 @@ export default function Browse() {
 
   const itemsHead = (list: Item[]) => (
     <div className="brw-section">
-      <span className="st">此处物品</span>
+      <span className="st">{t('browse.itemsTitle')}</span>
       {mergeOn ? (
         <span className="brw-secact">
           <span className="n">
             {keepItem
               ? foldCount > 0
-                ? `把 ${foldCount} 条并入「${keepItem.name}」`
-                : '点右侧「并入」勾选要合并的条目'
-              : '点一条，把它设为「保留」'}
+                ? fmt('browse.mergeGuide', { n: foldCount, name: keepItem.name })
+                : t('browse.markToMerge')
+              : t('browse.pickKeep')}
           </span>
           <button
             type="button"
@@ -456,25 +458,25 @@ export default function Browse() {
             onClick={() => void runMerge()}
           >
             <Icon name="merge" size={13} />
-            {foldCount > 0 ? `合并 ${foldCount}` : '合并'}
+            {foldCount > 0 ? fmt('browse.mergeNow', { n: foldCount }) : t('browse.merge')}
           </button>
           <button type="button" className="secchip secchip--ghost" onClick={exitMerge}>
             <Icon name="x" size={13} />
-            取消
+            {t('app.cancel')}
           </button>
         </span>
       ) : (
         <span className="brw-secact">
-          <span className="n">{list.length} 件</span>
+          <span className="n">{fmt('browse.itemsCount', { n: list.length })}</span>
           {list.length > 1 ? (
             <button
               type="button"
               className="secchip"
               onClick={enterMerge}
-              title="批量合并：点一条设为「保留」，再勾选要并入的（拖到另一条上也能单个合并）"
+              title={t('browse.mergeTip')}
             >
               <Icon name="merge" size={13} />
-              合并
+              {t('browse.merge')}
             </button>
           ) : null}
         </span>
@@ -511,7 +513,7 @@ export default function Browse() {
                     toggleFold(it.slug);
                   }}
                 >
-                  {fold.has(it.slug) ? '✓ 已选' : '并入'}
+                  {fold.has(it.slug) ? t('browse.selected') : t('browse.mergeIn')}
                 </button>
               </div>
             ) : (
@@ -532,7 +534,7 @@ export default function Browse() {
                 >
                   {rowBits(it)}
                 </button>
-                <Link className="ibtn" to={`/record?move=${it.slug}`} aria-label={`挪动 ${it.name}`} title="挪动">
+                <Link className="ibtn" to={`/record?move=${it.slug}`} aria-label={fmt('browse.move', { name: it.name })} title={t('item.chgMove')}>
                   <Icon name="move" />
                 </Link>
               </div>
@@ -545,7 +547,7 @@ export default function Browse() {
 
   const foldersSection = (kids: DirNode[]) => (
     <Fragment key="folders">
-      {sectionHead('子空间', `${kids.length} 个 · 拖到另一个文件夹 = 挪动`)}
+      {sectionHead(t('browse.subTitle'), fmt('browse.subNote', { n: kids.length }))}
       <div className="grid-folders">
         {kids.map((k) => {
           const cnt = countItemsIn(tree, items, k.id);
@@ -564,7 +566,7 @@ export default function Browse() {
             >
               <span className="ft-top">
                 <span className="glyph">{dirIcon(k)}</span>
-                <span className="ft-count">{leafEmpty ? '空' : `${cnt} 件`}</span>
+                <span className="ft-count">{leafEmpty ? t('browse.empty') : fmt('browse.itemsCount', { n: cnt })}</span>
               </span>
               <span className="ft-name">{k.name}</span>
               {grand.length ? (
@@ -584,19 +586,19 @@ export default function Browse() {
 
   const noFolders = (
     <Fragment key="nofolders">
-      {sectionHead('子空间', '0 个')}
+      {sectionHead(t('browse.subTitle'), '0')}
       <div className="glass-card brw-empty">
         <Icon name="dir" />
-        <b>{direct.length ? '这一层没有子容器' : '这是路径的末端'}</b>
+        <b>{direct.length ? t('browse.noSubContainer') : t('browse.pathEnd')}</b>
         <p>
           {direct.length
-            ? `它直接装着 ${direct.length} 件物品 —— 切到「物品」查看。`
-            : '一个装东西的具体容器，不再往下分。'}
+            ? fmt('browse.hasDirectHint', { n: direct.length })
+            : t('browse.leafHint')}
         </p>
         {direct.length ? null : (
           <Link className="btn btn--primary btn--sm" to={`/record${curQS}`}>
             <Icon name="plus" size={16} />
-            放个东西
+            {t('browse.place')}
           </Link>
         )}
       </div>
@@ -642,27 +644,27 @@ export default function Browse() {
             <div className="hd-group">
               <Link className="chip chip--glass hide-mobile" to="/">
                 <Icon name="search" size={14} />
-                去中枢搜
+                {t('browse.goHub')}
               </Link>
               <Link className="btn btn--primary btn--sm" to="/record">
                 <Icon name="plus" size={16} />
-                登记
+                {t('nav.record')}
               </Link>
             </div>
           </header>
 
           <main>
             <section className="page-lead in d1">
-              <p className="section-kicker">空间目录 · BROWSE</p>
-              <h1 className="lead-title">按路径逐层下钻。</h1>
-              <p className="lead-sub">拖到另一容器＝挪动；拖到物品上＝合并同类。</p>
+              <p className="section-kicker">{t('browse.kicker')}</p>
+              <h1 className="lead-title">{t('browse.title')}</h1>
+              <p className="lead-sub">{t('browse.sub')}</p>
             </section>
 
             <div className="brw-cols in d2">
-              <aside className="glass-panel brw-rail hide-mobile" aria-label="空间树">
+              <aside className="glass-panel brw-rail hide-mobile" aria-label={t('browse.treeAria')}>
                 <div className="panel-head">
-                  <span className="section-kicker">空间树</span>
-                  <span className="t-xs t-muted t-mono">容器 = 路径</span>
+                  <span className="section-kicker">{t('browse.tree')}</span>
+                  <span className="t-xs t-muted t-mono">{t('browse.treeSub')}</span>
                 </div>
                 <nav className="brw-tree">{tree.map(treeNode)}</nav>
               </aside>
@@ -676,9 +678,9 @@ export default function Browse() {
                       value={view}
                       onChange={(v) => setView(v as View)}
                       options={[
-                        { value: 'all', label: '全部' },
-                        { value: 'folders', label: '子空间' },
-                        { value: 'items', label: '物品' },
+                        { value: 'all', label: t('common.all') },
+                        { value: 'folders', label: t('browse.viewFolders') },
+                        { value: 'items', label: t('browse.viewItems') },
                       ]}
                     />
                   </div>
@@ -690,9 +692,9 @@ export default function Browse() {
         </div>
 
         <TabBar>
-          <TabLink to="/" icon="home" label="中枢" />
-          <TabLink to="/record" icon="plus" label="登记" pill />
-          <TabLink to="/browse" icon="dir" label="目录" current />
+          <TabLink to="/" icon="home" label={t('nav.hub')} />
+          <TabLink to="/record" icon="plus" label={t('nav.recordPill')} pill />
+          <TabLink to="/browse" icon="dir" label={t('nav.browse')} current />
         </TabBar>
       </div>
 

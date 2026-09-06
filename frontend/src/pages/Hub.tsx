@@ -18,6 +18,7 @@ import type { SearchResult } from '../api/client';
 import type { SearchModeDTO } from '../api/types';
 import { useCatalog } from '../stores/catalog';
 import { useToast } from '../stores/toast';
+import { useTr } from '../i18n';
 
 const V = (o: Record<string, string | number>): CSSProperties => o as CSSProperties;
 
@@ -25,6 +26,7 @@ type Row = { kind: 'item'; slug: string } | { kind: 'space'; slug: string };
 
 export default function Hub() {
   const navigate = useNavigate();
+  const { t, fmt } = useTr();
   const items = useCatalog((s) => s.items);
   const tree = useCatalog((s) => s.tree);
   const recent = useCatalog((s) => s.recent);
@@ -38,7 +40,7 @@ export default function Hub() {
       setReveal(r.slug);
       navigate(`/browse?at=${r.spot}`);
     } else {
-      toast(`正在定位到「${r.name}」`);
+      toast(fmt('hub.locating', { name: r.name }));
     }
   };
 
@@ -198,7 +200,7 @@ export default function Hub() {
               {it.name} <span className="t-xs" style={V({ color: 'var(--faint)', fontFamily: 'var(--font-mono)' })}>×{it.qty}</span>
             </span>
             <span className="rr-sub">
-              <StatusBadge cls={it.status} label={it.status === 'present' ? '在' : it.status === 'lent' ? '借出' : '用完'} />
+              <StatusBadge cls={it.status} label={t('status.' + it.status)} />
               <span className="mono-path ellip">{itemPathOf(it)}</span>
             </span>
           </span>
@@ -219,7 +221,7 @@ export default function Hub() {
         <span className="rr-main">
           <span className="rr-name">{node.name}</span>
           <span className="rr-sub">
-            <span className="t-xs">空间 · {node.kids.length} 个子空间</span>
+            <span className="t-xs">{fmt('hub.spaceRow', { n: node.kids.length })}</span>
           </span>
         </span>
         <Icon name="chev" size={16} style={V({ color: 'var(--faint)', flex: 'none' })} />
@@ -242,21 +244,21 @@ export default function Hub() {
   if (!query) {
     spotBody = (
       <>
-        {groupHead('最近查找')}
+        {groupHead(t('hub.recentLookup'))}
         {renderList(rows)}
       </>
     );
   } else if (rows.length === 0) {
     spotBody = searching ? (
-      <p className="t-sm t-faint" style={{ padding: '12px 10px' }}>搜索中…</p>
+      <p className="t-sm t-faint" style={{ padding: '12px 10px' }}>{t('hub.searching')}</p>
     ) : (
       <EmptyState
         icon="search"
-        title={`没有找到「${q.trim()}」`}
-        hint="换个说法，或去「目录」里翻一翻"
+        title={fmt('hub.notFound', { q: q.trim() })}
+        hint={t('hub.notFoundHint')}
         action={
           <Link className="btn btn--soft btn--sm mt8" to="/browse">
-            去目录浏览
+            {t('hub.goBrowse')}
           </Link>
         }
       />
@@ -264,9 +266,9 @@ export default function Hub() {
   } else {
     spotBody = (
       <>
-        {groupHead(`物品 · ${itemRows.length}`)}
+        {groupHead(fmt('hub.groupItem', { n: itemRows.length }))}
         {renderList(itemRows)}
-        {groupHead(`空间 · ${spaceRows.length}`)}
+        {groupHead(fmt('hub.groupSpace', { n: spaceRows.length }))}
         {renderList(spaceRows)}
       </>
     );
@@ -294,19 +296,19 @@ export default function Hub() {
                 <Icon name="sliders" />
               </button>
               <Link className="btn btn--primary btn--sm hide-mobile" to="/record">
-                <Icon name="plus" size={16} />登记
+                <Icon name="plus" size={16} />{t('nav.record')}
               </Link>
             </div>
           </header>
 
           <main>
             <section className="hero in d1">
-              <p className="section-kicker">中枢 · SPOTLIGHT</p>
-              <h1>东西在哪？</h1>
-              <p className="lead">输入名称、空间或类别，一步直达。</p>
+              <p className="section-kicker">{t('hub.kicker')}</p>
+              <h1>{t('hub.title')}</h1>
+              <p className="lead">{t('hub.sub')}</p>
               <button type="button" className="hero-search" aria-haspopup="dialog" onClick={() => openSpot()}>
                 <Icon name="search" className="mag" />
-                <span className="ph">找「HDMI 线」「书房」… 或一个类别</span>
+                <span className="ph">{t('hub.searchPh')}</span>
                 <span className="hint">
                   <Kbd>⌘ K</Kbd>
                 </span>
@@ -322,7 +324,7 @@ export default function Hub() {
                     fontWeight: '600',
                   })}
                 >
-                  我常找
+                  {t('hub.frequent')}
                 </span>
                 {QUICK.map((k) => (
                   <button key={k} type="button" className="chip chip--glass" onClick={() => openSpot(k)}>
@@ -337,7 +339,7 @@ export default function Hub() {
                   onClick={() => setExistOpen(true)}
                 >
                   <Icon name="locate" size={14} />
-                  确认这里有没有…
+                  {t('hub.exist')}
                 </button>
               </div>
             </section>
@@ -348,7 +350,7 @@ export default function Hub() {
                 <div className="section-head">
                   <div>
                     <h2 className="st" id="recentTitle">
-                      最近处理
+                      {t('hub.recentTitle')}
                     </h2>
                   </div>
                   <span className="t-xs t-muted mono-path">LAST · {recent.length}</span>
@@ -387,14 +389,14 @@ export default function Hub() {
                 <div className="section-head">
                   <div>
                     <h2 className="st" id="sceneTitle">
-                      场景目录
+                      {t('hub.sceneTitle')}
                     </h2>
                     <p className="t-sm t-muted mt8">
-                      点卡片进入；点子空间胶囊直达那一层。
+                      {t('hub.sceneHint')}
                     </p>
                   </div>
                   <Link className="link" to="/browse">
-                    进目录 <Icon name="chev" size={13} style={V({ display: 'inline-block', verticalAlign: '-1px' })} />
+                    {t('hub.scenes')} <Icon name="chev" size={13} style={V({ display: 'inline-block', verticalAlign: '-1px' })} />
                   </Link>
                 </div>
                 <div className="grid-scenes">
@@ -406,7 +408,7 @@ export default function Hub() {
                         className={`scene-card in d${(i % 3) + 2}`}
                         style={V({ ['--tint-a']: sc.tintA, ['--tint-b']: sc.tintB })}
                       >
-                        <Link className="scene-cover" to={`/browse?at=${sc.slug}`} aria-label={`进入 ${sc.name}`}>
+                        <Link className="scene-cover" to={`/browse?at=${sc.slug}`} aria-label={fmt('hub.enter', { name: sc.name })}>
                           <span className="icon-tile">
                             <Icon name={TYPE_ICON[sc.type]} />
                           </span>
@@ -417,9 +419,9 @@ export default function Hub() {
                           </span>
                         </Link>
                         <div className="scene-body">
-                          <Link className="between scene-goto" to={`/browse?at=${sc.slug}`} aria-label={`进入 ${sc.name}`}>
+                          <Link className="between scene-goto" to={`/browse?at=${sc.slug}`} aria-label={fmt('hub.enter', { name: sc.name })}>
                             <span className="t-xs t-muted">
-                              {kids.length} 个子空间 · {sceneCnt(sc)} 件物品
+                              {fmt('hub.sceneMeta', { kids: kids.length, items: sceneCnt(sc) })}
                             </span>
                             <Icon name="chev" size={15} style={V({ color: 'var(--faint)' })} />
                           </Link>
@@ -429,7 +431,7 @@ export default function Hub() {
                                 key={k.id}
                                 className="glass-chip chip-sub"
                                 to={`/browse?at=${k.id}`}
-                                aria-label={`进入 ${k.name}`}
+                                aria-label={fmt('hub.enter', { name: k.name })}
                               >
                                 <CDot color={TYPE_TINT[k.type]} />
                                 {k.name}
@@ -447,11 +449,11 @@ export default function Hub() {
         </div>
 
         <TabBar>
-          <TabLink to="/" icon="home" label="中枢" current />
-          <TabLink to="/browse" icon="dir" label="目录" />
-          <TabLink to="/record" icon="plus" label="登记" pill />
-          <TabAction icon="search" label="搜索" onClick={() => openSpot()} />
-          <TabAction icon="sliders" label="设置" onClick={() => setSettingsOpen(true)} />
+          <TabLink to="/" icon="home" label={t('nav.hub')} current />
+          <TabLink to="/browse" icon="dir" label={t('nav.browse')} />
+          <TabLink to="/record" icon="plus" label={t('nav.recordPill')} pill />
+          <TabAction icon="search" label={t('nav.search')} onClick={() => openSpot()} />
+          <TabAction icon="sliders" label={t('nav.settings')} onClick={() => setSettingsOpen(true)} />
         </TabBar>
       </div>
 
@@ -465,7 +467,7 @@ export default function Hub() {
         className={`spot glass-panel${spotOpen ? ' show' : ''}${split ? ' spot--left' : ''}`}
         role="dialog"
         aria-modal="true"
-        aria-label="搜索"
+        aria-label={t('hub.spotAria')}
       >
         <div style={{ padding: '12px 14px 4px' }}>
           <div className="rowline" style={V({ gap: 10 })}>
@@ -475,9 +477,9 @@ export default function Hub() {
               value={q}
               onChange={(e) => setQ(e.target.value)}
               className="field"
-              placeholder="找物品、空间或类别…"
+              placeholder={t('hub.spotPh')}
               autoComplete="off"
-              aria-label="搜索词"
+              aria-label={t('hub.spotInAria')}
               style={V({ flex: '1', minHeight: 44 })}
               onKeyDown={onSpotKey}
             />
@@ -493,10 +495,10 @@ export default function Hub() {
                 setRes(null);
               }}
               options={[
-                { value: 'fuzzy', label: '模糊' },
-                { value: 'exact', label: '精确' },
-                { value: 'category', label: '类别' },
-                { value: 'existence', label: '存在' },
+                { value: 'fuzzy', label: t('mode.fuzzy') },
+                { value: 'exact', label: t('mode.exact') },
+                { value: 'category', label: t('mode.category') },
+                { value: 'existence', label: t('mode.existence') },
               ]}
             />
           </div>
@@ -516,13 +518,13 @@ export default function Hub() {
         >
           <span className="rowline gap6">
             <Kbd>↑</Kbd>
-            <Kbd>↓</Kbd> 选择
+            <Kbd>↓</Kbd> {t('hub.kbdSelect')}
           </span>
           <span className="rowline gap6">
-            <Kbd>↵</Kbd> 打开
+            <Kbd>↵</Kbd> {t('hub.kbdOpen')}
           </span>
           <span className="grow" />
-          <span className="t-mono">按 ⌘K 随时唤起</span>
+          <span className="t-mono">{t('hub.kbdHint')}</span>
         </div>
       </div>
 
@@ -695,6 +697,7 @@ function ExistSheet({
   const [hits, setHits] = useState<Item[]>([]);
   const [searching, setSearching] = useState(false);
   const seqRef = useRef(0);
+  const { t, fmt } = useTr();
 
   const query = q.trim().toLowerCase();
   /* every existing space at any depth, as "~/ a / b" — pick a middle layer too */
@@ -734,11 +737,11 @@ function ExistSheet({
   }, [query, scopeSpaceId, search]);
 
   return (
-    <Sheet open={open} onClose={onClose} side="bottom" title="确认这里有没有…" grab>
+    <Sheet open={open} onClose={onClose} side="bottom" title={t('hub.exist')} grab>
       <div>
-        <span className="field-label">在哪个范围里找？</span>
+        <span className="field-label">{t('exist.scope')}</span>
         <select className="field" value={scopeId} onChange={(e) => setScopeId(e.target.value)}>
-          <option value="">全部位置</option>
+          <option value="">{t('exist.all')}</option>
           {spaces.map((s) => (
             <option key={s.id} value={s.id}>
               ~/ {s.label}
@@ -747,10 +750,10 @@ function ExistSheet({
         </select>
       </div>
       <div>
-        <span className="field-label">找什么？</span>
+        <span className="field-label">{t('exist.what')}</span>
         <input
           className="field"
-          placeholder="例如：充电宝 / 剪刀"
+          placeholder={t('exist.placeholder')}
           autoComplete="off"
           value={q}
           onChange={(e) => setQ(e.target.value)}
@@ -758,16 +761,16 @@ function ExistSheet({
         <div className="wrap-t gap6 mt8">
           {['充电宝', '剪刀', 'HDMI 线'].map((x) => (
             <button key={x} type="button" className="chip chip--glass" onClick={() => setQ(x)}>
-              试试：{x}
+              {fmt('exist.try', { x })}
             </button>
           ))}
         </div>
       </div>
       <div aria-live="polite">
         {!query ? (
-          <p className="t-sm t-faint">输入名称后，这里会直接告诉你「在不在」。 </p>
+          <p className="t-sm t-faint">{t('exist.tip')}</p>
         ) : searching && hits.length === 0 ? (
-          <p className="t-sm t-faint">正在查看…</p>
+          <p className="t-sm t-faint">{t('exist.searching')}</p>
         ) : hits.length ? (
           hits.slice(0, 4).map((it) => (
             <button key={it.slug} type="button" className="glass-card rec-suggest in" onClick={() => onOpenItem(it.slug)} style={{ width: '100%' }}>
@@ -776,16 +779,16 @@ function ExistSheet({
               </span>
               <span className="rec-sug-txt">
                 <span className="rec-sug-line">
-                  在 <span className="mono-path">~/ {pathNames(tree, it.spot).join(' / ')}</span> · 有 {it.qty} {it.unit}「{it.name}」
+                  {fmt('exist.hit', { path: `~/ ${pathNames(tree, it.spot).join(' / ')}`, qty: it.qty, unit: it.unit, name: it.name })}
                 </span>
-                <span className="rec-sug-hint">点这里看它的详情</span>
+                <span className="rec-sug-hint">{t('exist.hitHint')}</span>
               </span>
             </button>
           ))
         ) : (
           <div className="empty-state" style={{ marginTop: 4 }}>
-            <b>这个范围里没有「{q.trim()}」</b>
-            <span>换个说法，或确认是否真的在这里登记过</span>
+            <b>{fmt('exist.none', { q: q.trim() })}</b>
+            <span>{t('exist.noneHint')}</span>
           </div>
         )}
       </div>
@@ -800,6 +803,7 @@ function CategorySheet({ open, onClose }: { open: boolean; onClose: () => void }
   const renameCategory = useCatalog((s) => s.renameCategory);
   const removeCategory = useCatalog((s) => s.removeCategory);
   const toast = useToast((s) => s.push);
+  const { t, fmt } = useTr();
 
   const [newName, setNewName] = useState('');
   const [editingId, setEditingId] = useState<number | null>(null);
@@ -828,11 +832,11 @@ function CategorySheet({ open, onClose }: { open: boolean; onClose: () => void }
   };
 
   return (
-    <Sheet open={open} onClose={onClose} side="bottom" title="分类管理" grab>
+    <Sheet open={open} onClose={onClose} side="bottom" title={t('cat.title')} grab>
       <div className="rowline gap8">
         <input
           className="field"
-          placeholder="新分类名称"
+          placeholder={t('cat.newPh')}
           value={newName}
           onChange={(e) => setNewName(e.target.value)}
           onKeyDown={(e) => {
@@ -845,7 +849,7 @@ function CategorySheet({ open, onClose }: { open: boolean; onClose: () => void }
           onClick={() => void submitNew()}
           disabled={!newName.trim()}
         >
-          添加
+          {t('app.add')}
         </button>
       </div>
       <div className="col gap6">
@@ -864,8 +868,8 @@ function CategorySheet({ open, onClose }: { open: boolean; onClose: () => void }
                       if (e.key === 'Enter') void saveRename();
                     }}
                   />
-                  <button type="button" className="btn btn--soft btn--sm" onClick={() => void saveRename()}>保存</button>
-                  <button type="button" className="btn btn--ghost btn--sm" onClick={() => setEditingId(null)}>取消</button>
+                  <button type="button" className="btn btn--soft btn--sm" onClick={() => void saveRename()}>{t('app.save')}</button>
+                  <button type="button" className="btn btn--ghost btn--sm" onClick={() => setEditingId(null)}>{t('app.cancel')}</button>
                 </>
               ) : deleting ? (
                 <>
@@ -877,13 +881,13 @@ function CategorySheet({ open, onClose }: { open: boolean; onClose: () => void }
                         value={deleteInto}
                         onChange={(e) => setDeleteInto(e.target.value ? Number(e.target.value) : '')}
                       >
-                        <option value="">先选合并到的分类…</option>
+                        <option value="">{t('cat.mergeIntoPh')}</option>
                         {categories.filter((x) => x.id !== c.id).map((x) => (
                           <option key={x.id} value={x.id}>{x.name}</option>
                         ))}
                       </select>
                     ) : (
-                      <span>确认删除「{c.name}」？</span>
+                      <span>{fmt('cat.confirmDelete', { name: c.name })}</span>
                     )}
                   </span>
                   <button
@@ -892,14 +896,14 @@ function CategorySheet({ open, onClose }: { open: boolean; onClose: () => void }
                     disabled={c.itemCount > 0 && deleteInto === ''}
                     onClick={() => void confirmDelete()}
                   >
-                    删除
+                    {t('app.delete')}
                   </button>
-                  <button type="button" className="btn btn--ghost btn--sm" onClick={() => setDeletingId(null)}>取消</button>
+                  <button type="button" className="btn btn--ghost btn--sm" onClick={() => setDeletingId(null)}>{t('app.cancel')}</button>
                 </>
               ) : (
                 <>
                   <span className="grow ellip">{c.name}</span>
-                  <span className="tag tag--type" style={V({ ['--tc']: 'var(--muted)' })}>{c.itemCount} 件</span>
+                  <span className="tag tag--type" style={V({ ['--tc']: 'var(--muted)' })}>{fmt('cat.count', { n: c.itemCount })}</span>
                   <button
                     type="button"
                     className="btn btn--ghost btn--sm"
@@ -908,7 +912,7 @@ function CategorySheet({ open, onClose }: { open: boolean; onClose: () => void }
                       setEditingName(c.name);
                     }}
                   >
-                    改名
+                    {t('cat.rename')}
                   </button>
                   <button
                     type="button"
@@ -919,7 +923,7 @@ function CategorySheet({ open, onClose }: { open: boolean; onClose: () => void }
                       setDeleteInto('');
                     }}
                   >
-                    删除
+                    {t('app.delete')}
                   </button>
                 </>
               )}
@@ -927,7 +931,7 @@ function CategorySheet({ open, onClose }: { open: boolean; onClose: () => void }
           );
         })}
         {categories.length === 0 ? (
-          <p className="t-sm t-faint">还没有分类。登记时会自动创建；也可以在这里新增。</p>
+          <p className="t-sm t-faint">{t('cat.empty')}</p>
         ) : null}
       </div>
     </Sheet>

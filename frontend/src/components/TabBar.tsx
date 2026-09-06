@@ -1,11 +1,12 @@
 import type { ReactNode } from 'react';
 import { Link } from 'react-router-dom';
 import { Icon, type IconName } from './icons';
+import { intl } from '../i18n';
 
 /** mobile bottom tab bar host (hidden on desktop via CSS) */
 export function TabBar({ children }: { children: ReactNode }) {
   return (
-    <div className="tabbar-wrap" aria-label="主导航">
+    <div className="tabbar-wrap" aria-label={intl.t('nav.main')}>
       <nav className="tabbar">{children}</nav>
     </div>
   );

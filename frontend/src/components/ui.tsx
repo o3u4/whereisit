@@ -10,14 +10,15 @@ import { Icon, CDot, type IconName } from './icons';
 import { STATUS } from '../lib/meta';
 import type { ItemStatus } from '../lib/types';
 import { useToast } from '../stores/toast';
+import { intl } from '../i18n';
 
 /* ------------------------------------------------ wordmark --------------- */
 export function Wordmark({ home = '/' }: { home?: string }) {
   return (
-    <Link className="wordmark" to={home} aria-label="whereisit 中枢首页">
+    <Link className="wordmark" to={home} aria-label="whereisit">
       <span className="tild">~/</span>whereisit<span className="dot" />
       <span className="t-muted t-xs t-mono hide-mobile" style={{ marginLeft: 2 }}>
-        物品在哪
+        {intl.t('app.tagline')}
       </span>
     </Link>
   );
@@ -93,11 +94,11 @@ export function Stepper({
   const set = (d: number) => onChange(Math.max(min, Math.min(max, value + d)));
   return (
     <span className="stepper">
-      <button type="button" aria-label="减少" onClick={() => set(-1)}>
+      <button type="button" aria-label={intl.t('app.decrease')} onClick={() => set(-1)}>
         −
       </button>
       <span className="val">{value}</span>
-      <button type="button" aria-label="增加" onClick={() => set(1)}>
+      <button type="button" aria-label={intl.t('app.increase')} onClick={() => set(1)}>
         +
       </button>
     </span>
@@ -158,7 +159,7 @@ export function Sheet({
   noDim?: boolean;
 }) {
   const closeBtn = (
-    <button type="button" className="ibtn" onClick={onClose} aria-label="关闭">
+    <button type="button" className="ibtn" onClick={onClose} aria-label={intl.t('app.close')}>
       <Icon name="x" />
     </button>
   );
@@ -218,9 +219,9 @@ export function EmptyState({
   );
 }
 
-/** status text/label helper (在 / 借出 / 用完) */
+/** status text/label helper — translates the STATUS dict key at call time. */
 export const statusLabel = (s: string): string =>
-  s === 'present' || s === 'lent' || s === 'consumed' ? STATUS[s].label : s;
+  s === 'present' || s === 'lent' || s === 'consumed' ? intl.t(STATUS[s as ItemStatus].label) : s;
 
 /** build toast host (fixed). Consumes the global toast store. */
 export function ToastsHost() {

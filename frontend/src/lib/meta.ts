@@ -30,10 +30,11 @@ export function catMeta(label: string | null | undefined): CatMeta {
   return { label: '', tint: 'var(--accent)', icon: 'tag' };
 }
 
+/** label is a dict key (status.*) — translate at the render site via useTr(). */
 export const STATUS: Record<ItemStatus, { label: string }> = {
-  present: { label: '在' },
-  lent: { label: '借出' },
-  consumed: { label: '用完' },
+  present: { label: 'status.present' },
+  lent: { label: 'status.lent' },
+  consumed: { label: 'status.consumed' },
 };
 
 /** tint per container type (tree glyph / type chips / folder tiles) */

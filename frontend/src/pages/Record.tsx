@@ -13,11 +13,12 @@ import { Icon } from '../components/icons';
 import { Wordmark, Seg, Stepper, StatusBadge, ToastsHost } from '../components/ui';
 import { TabBar, TabLink } from '../components/TabBar';
 import { LocationPicker } from '../components/LocationPicker';
-import { catMeta, KNOWN_CAT_LABELS, STATUS } from '../lib/meta';
+import { catMeta, KNOWN_CAT_LABELS } from '../lib/meta';
 import { pathNames } from '../lib/tree';
 import type { Item, ItemStatus, RecentEntry } from '../lib/types';
 import { useCatalog } from '../stores/catalog';
 import { useToast } from '../stores/toast';
+import { useTr } from '../i18n';
 
 const V = (o: Record<string, string>): CSSProperties => o as CSSProperties;
 
@@ -25,15 +26,14 @@ type Mode = 'A' | 'B';
 
 type Tone = RecentEntry['tone'];
 
-const STATUS_OPTS: { value: ItemStatus; label: string }[] = (['present', 'lent', 'consumed'] as const).map(
-  (v) => ({ value: v, label: STATUS[v].label }),
-);
-
-const stLabel = (s: ItemStatus) => STATUS[s].label;
+const STATUS_LIST: ItemStatus[] = ['present', 'lent', 'consumed'];
 
 export default function Record() {
   const navigate = useNavigate();
   const loc = useLocation();
+  const { t, fmt } = useTr();
+  const stText = (s: ItemStatus) => t('status.' + s);
+  const statusOpts = STATUS_LIST.map((v) => ({ value: v, label: t('status.' + v) }));
   const [search] = useSearchParams();
   const toast = useToast((s) => s.push);
 
@@ -80,7 +80,7 @@ export default function Record() {
     const n = newCatName.trim();
     if (!n) return;
     if (await addCategory(n)) {
-      toast(`已新增分类「${n}」`);
+      toast(fmt('rec.catAdded', { name: n }));
       setCat(n);
       setNewCatName('');
     }
@@ -204,10 +204,10 @@ export default function Record() {
   const deltaTxt = !srcItem
     ? ''
     : delta === 0
-      ? '保持原数量'
+      ? t('rec.keepQty')
       : delta > 0
-        ? `较原来 +${delta} ${srcItem.unit}`
-        : `较原来 −${-delta} ${srcItem.unit}`;
+        ? fmt('rec.deltaMore', { n: delta, unit: srcItem.unit })
+        : fmt('rec.deltaLess', { n: -delta, unit: srcItem.unit });
   const changed =
     srcItem !== null &&
     (spot !== srcItem.spot || qty !== srcItem.qty || status !== srcItem.status);
@@ -218,7 +218,7 @@ export default function Record() {
       : srcItem
         ? changed && validQty
         : false;
-  const ctaLabel = mode === 'A' ? '确认登记' : '确认移动';
+  const ctaLabel = mode === 'A' ? t('rec.ctaA') : t('rec.ctaB');
 
   const busyRef = useRef(false);
   const confirm = async () => {
@@ -245,11 +245,11 @@ export default function Record() {
       spot,
     });
     if (!s) {
-      toast('登记失败 · 无法连接后端');
+      toast(t('rec.regFail'));
       return;
     }
-    pushRecent({ id: 'r' + Date.now(), verb: '放好', tone: 'present', icon: 'plus', name, slug: s, spot, sub: pathNames(tree, spot).join(' / '), time: '刚刚' });
-    toast(`已登记「${name}」`);
+    pushRecent({ id: 'r' + Date.now(), verb: t('rec.verbPlaced'), tone: 'present', icon: 'plus', name, slug: s, spot, sub: pathNames(tree, spot).join(' / '), time: t('recent.justNow') });
+    toast(fmt('rec.regToast', { name }));
     setSlug(s);
     setDone(true);
   };
@@ -265,31 +265,31 @@ export default function Record() {
       status: sC ? status : undefined,
     });
     if (!res) {
-      toast('更新失败 · 无法连接后端');
+      toast(t('rec.updateFail'));
       return;
     }
     const targetSpot = locC && spot ? spot : it.spot;
-    let verb = '挪动';
+    let verb = t('rec.verbMoved');
     let tone: Tone = 'present';
     let icon: string = 'move';
     if (!locC && sC) {
       if (status === 'lent') {
-        verb = '借出';
+        verb = t('rec.verbLent');
         tone = 'lent';
         icon = 'arrow-l';
       } else if (status === 'consumed') {
-        verb = '用完';
+        verb = t('rec.verbConsumed');
         tone = 'consumed';
         icon = 'x';
       } else {
-        verb = '更新';
+        verb = t('rec.verbUpdated');
         icon = 'tag';
       }
     } else if (qC) {
-      verb = '整理';
+      verb = t('rec.verbTidy');
     }
-    pushRecent({ id: 'r' + Date.now(), verb, tone, icon, name: it.name, slug: res.slug, spot: targetSpot, sub: pathNames(tree, targetSpot).join(' / '), time: '刚刚' });
-    toast(`已更新「${it.name}」的位置与状态`);
+    pushRecent({ id: 'r' + Date.now(), verb, tone, icon, name: it.name, slug: res.slug, spot: targetSpot, sub: pathNames(tree, targetSpot).join(' / '), time: t('recent.justNow') });
+    toast(fmt('rec.updateToast', { name: it.name }));
     setSlug(res.slug);
     setDone(true);
   };
@@ -300,49 +300,49 @@ export default function Record() {
   };
 
   /* -------- render: status badge inline --------------------------------- */
-  const statusBadge = (s: ItemStatus) => <StatusBadge cls={s} label={stLabel(s)} />;
+  const statusBadge = (s: ItemStatus) => <StatusBadge cls={s} label={stText(s)} />;
 
   const previewRows: ReactNode =
     mode === 'A' ? (
       <>
-        <PvRow k="名称" v={aName.trim() || <Faint>未填写</Faint>} />
-        <PvRow k="类别" v={cat ? catMeta(cat).label : <Faint>未选择</Faint>} />
-        <PvRow k="数量" v={`${qty} ${unit}`} mono />
-        <PvRow k="状态" v={statusBadge(status)} tail />
-        <PvRow k="位置" v={spotPathTxt || <Faint>还没选</Faint>} mono />
+        <PvRow k={t('rec.kName')} v={aName.trim() || <Faint>{t('rec.notFilled')}</Faint>} />
+        <PvRow k={t('rec.kCat')} v={cat ? catMeta(cat).label : <Faint>{t('rec.notChosen')}</Faint>} />
+        <PvRow k={t('rec.kQty')} v={`${qty} ${unit}`} mono />
+        <PvRow k={t('rec.kStatus')} v={statusBadge(status)} tail />
+        <PvRow k={t('rec.kPos')} v={spotPathTxt || <Faint>{t('rec.noSpot')}</Faint>} mono />
       </>
     ) : srcItem ? (
       <>
-        <PvRow k="物品" v={srcItem.name} />
-        <PvRow k="数量" v={`${qty} ${srcItem.unit}`} mono />
-        <PvRow k="状态" v={statusBadge(status)} tail />
-        <PvRow k="位置" v={spotPathTxt || <Faint>还没选</Faint>} mono />
+        <PvRow k={t('rec.kItem')} v={srcItem.name} />
+        <PvRow k={t('rec.kQty')} v={`${qty} ${srcItem.unit}`} mono />
+        <PvRow k={t('rec.kStatus')} v={statusBadge(status)} tail />
+        <PvRow k={t('rec.kPos')} v={spotPathTxt || <Faint>{t('rec.noSpot')}</Faint>} mono />
       </>
     ) : (
       <div className="empty-state" style={{ padding: '16px 8px' }}>
-        <b>还没挑物品</b>
-        <span>选一件已有物品来挪动</span>
+        <b>{t('rec.noItemChosen')}</b>
+        <span>{t('rec.noItemChosenHint')}</span>
       </div>
     );
 
   const ctaSum = (() => {
     if (mode === 'A')
       return aName.trim()
-        ? { nm: aName.trim(), pth: spotPathTxt || '还没选位置' }
-        : { nm: '尚未填写名称', pth: '', ghost: true };
-    if (srcItem) return { nm: srcItem.name, pth: spotPathTxt || '还没选位置' };
-    return { nm: '尚未选择物品', pth: '', ghost: true };
+        ? { nm: aName.trim(), pth: spotPathTxt || t('rec.noSpotTxt') }
+        : { nm: t('rec.noName'), pth: '', ghost: true };
+    if (srcItem) return { nm: srcItem.name, pth: spotPathTxt || t('rec.noSpotTxt') };
+    return { nm: t('rec.noItem'), pth: '', ghost: true };
   })();
 
   const locRow = (labelHint?: boolean) => (
     <>
       <div className="between">
         <span className="field-label" style={{ margin: 0 }}>
-          位置
-          {labelHint ? <span className="hint">必填 · 选一个格子</span> : null}
+          {t('rec.kPos')}
+          {labelHint ? <span className="hint">{t('rec.locHint')}</span> : null}
         </span>
         <button type="button" className="btn--text t-sm" onClick={openPick}>
-          更改
+          {t('rec.locChange')}
         </button>
       </div>
       <button type="button" className="rec-locrow" onClick={openPick}>
@@ -353,11 +353,11 @@ export default function Record() {
           {spotPathTxt ? (
             <span>{spotPathTxt}</span>
           ) : (
-            <span className="plh">还没选位置</span>
+            <span className="plh">{t('rec.noSpotTxt')}</span>
           )}
         </span>
         <span className="btn btn--soft btn--sm" style={V({ pointerEvents: 'none', minHeight: '38px' })}>
-          选择
+          {t('rec.locSelect')}
         </span>
       </button>
     </>
@@ -367,18 +367,18 @@ export default function Record() {
   const stageA = (
     <div className="rec-form">
       <div className="rec-hint">
-        <span className="cdot" />同类可多处存在 · 这里登记的是新的一次
+        <span className="cdot" />{t('rec.hintMulti')}
       </div>
 
       <div className="glass-card panel rec-card">
         <div className="between">
           <span className="field-label" style={{ margin: 0 }}>
-            名称 <span className="hint">必填</span>
+            {t('rec.kName')} <span className="hint">{t('rec.nameReq')}</span>
           </span>
         </div>
         <input
           className="field rec-field"
-          placeholder="例如 HDMI 线 / 剪刀"
+          placeholder={t('rec.namePh')}
           autoComplete="off"
           maxLength={30}
           value={aName}
@@ -394,17 +394,16 @@ export default function Record() {
                 </div>
                 <div className="rec-sug-txt">
                   <div className="rec-sug-line">
-                    已在 <span className="mono-path">~/ {pathNames(tree, it.spot).join(' / ')}</span> · 有{' '}
-                    {it.qty} {it.unit}「{it.name}」
+                    {fmt('rec.alreadyAt', { path: `~/ ${pathNames(tree, it.spot).join(' / ')}`, qty: it.qty, unit: it.unit, name: it.name })}
                   </div>
-                  <div className="rec-sug-hint">是同一件？还是想新增一件同类？</div>
+                  <div className="rec-sug-hint">{t('rec.sameOrNew')}</div>
                 </div>
                 <div className="rec-sug-act">
                   <button type="button" className="btn btn--soft btn--sm" onClick={() => pickItem(it.slug)}>
-                    去更新它
+                    {t('rec.goUpdate')}
                   </button>
                   <button type="button" className="btn btn--ghost btn--sm" onClick={() => dismiss(it.slug)}>
-                    仍要新增
+                    {t('rec.stillNew')}
                   </button>
                 </div>
               </div>
@@ -413,11 +412,11 @@ export default function Record() {
         ) : null}
         <div className="rec-hr" />
         <span className="field-label">
-          别名 <span className="hint">可选 · 便于搜索</span>
+          {t('rec.kAlias')} <span className="hint">{t('rec.aliasHint')}</span>
         </span>
         <input
           className="field rec-field"
-          placeholder="别名，用逗号分隔"
+          placeholder={t('rec.aliasPh')}
           autoComplete="off"
           maxLength={40}
           value={aAlias}
@@ -428,7 +427,7 @@ export default function Record() {
       <div className="glass-card panel rec-card">
         <div className="between">
           <span className="field-label" style={{ margin: 0 }}>
-            类别 <span className="hint">必填</span>
+            {t('rec.kCat')} <span className="hint">{t('rec.nameReq')}</span>
           </span>
           {others.length > 0 ? (
             <button
@@ -437,7 +436,7 @@ export default function Record() {
               aria-expanded={catExpanded}
               onClick={() => setCatExpanded((v) => !v)}
             >
-              {catExpanded ? '收起' : `全部类别 (${others.length})`}
+              {catExpanded ? t('rec.catCollapse') : fmt('rec.catAll', { n: others.length })}
             </button>
           ) : null}
         </div>
@@ -450,7 +449,7 @@ export default function Record() {
         <div className="rec-addrow">
           <input
             className="field"
-            placeholder="新类别名称 · 回车新增"
+            placeholder={t('rec.newCatPh')}
             maxLength={12}
             value={newCatName}
             onChange={(e) => setNewCatName(e.target.value)}
@@ -464,7 +463,7 @@ export default function Record() {
             disabled={!newCatName.trim()}
             onClick={() => void addNewCat()}
           >
-            ＋ 新增
+            {t('rec.addCat')}
           </button>
         </div>
       </div>
@@ -472,22 +471,22 @@ export default function Record() {
       <div className="glass-card panel rec-card">
         <div className="between">
           <span className="field-label" style={{ margin: 0 }}>
-            数量 <span className="hint">0–999</span>
+            {t('rec.kQty')} <span className="hint">{t('rec.qtyHint')}</span>
           </span>
         </div>
         <div className="rec-field-row">
           <Stepper value={qty} onChange={setQtyV} min={0} max={999} />
           <input
             className="field rec-unit"
-            aria-label="单位"
+            aria-label={t('rec.unitAria')}
             maxLength={6}
             value={unit}
             onChange={(e) => setUnit(e.target.value)}
           />
         </div>
         <div className="rec-hr" />
-        <span className="field-label">状态</span>
-        <Seg value={status} onChange={(v) => setStatusV(v as ItemStatus)} options={STATUS_OPTS} />
+        <span className="field-label">{t('rec.kStatus')}</span>
+        <Seg value={status} onChange={(v) => setStatusV(v as ItemStatus)} options={statusOpts} />
       </div>
 
       <div className="glass-card panel rec-card">{locRow(true)}</div>
@@ -498,16 +497,16 @@ export default function Record() {
   const stageChooser = (
     <div className="rec-form">
       <div className="rec-hint">
-        <span className="cdot" />要挪动或更新哪一件？搜索，或直接挑一行。
+        <span className="cdot" />{t('rec.hintMove')}
       </div>
       <div className="glass-card panel rec-card">
         <div className="rec-pick-filter">
           <Icon name="search" />
           <input
             className="field"
-            placeholder="搜索物品名称 / 别名…"
+            placeholder={t('rec.bSearchPh')}
             autoComplete="off"
-            aria-label="搜索要挪动的物品"
+            aria-label={t('rec.bSearchAria')}
             value={bQ}
             onChange={(e) => setBQ(e.target.value)}
             autoFocus
@@ -535,8 +534,8 @@ export default function Record() {
           ))}
           {bList.length === 0 ? (
             <div className="empty-state" style={{ marginTop: 4 }}>
-              <b>没有「{bQ.trim()}」</b>
-              <span>换个名称或别名</span>
+              <b>{fmt('rec.bEmpty', { q: bQ.trim() })}</b>
+              <span>{t('rec.bEmptyHint')}</span>
             </div>
           ) : null}
         </div>
@@ -548,14 +547,14 @@ export default function Record() {
   const stageB = srcItem ? (
     <div className="rec-form">
       <div className="rec-hint">
-        <span className="cdot" />挪动 = 同步「位置 / 数量 / 状态」到这次记录
+        <span className="cdot" />{t('rec.hintSync')}
       </div>
 
       <div className="glass-card panel rec-source">
         <div className="between">
-          <span className="section-kicker">当前记录</span>
+          <span className="section-kicker">{t('rec.curRecord')}</span>
           <button type="button" className="btn--text t-sm" onClick={toChooser}>
-            换个物品
+            {t('rec.switchItem')}
           </button>
         </div>
         <div className="rec-src-row">
@@ -575,7 +574,7 @@ export default function Record() {
             {srcItem.qty} {srcItem.unit}
           </span>
           <Link className="btn--text t-sm" to={`/browse?at=${srcItem.spot}`}>
-            去目录里看
+            {t('rec.viewInTree')}
           </Link>
         </div>
       </div>
@@ -583,7 +582,7 @@ export default function Record() {
       <div className="glass-card panel rec-card">
         <div className="between">
           <span className="field-label" style={{ margin: 0 }}>
-            数量
+            {t('rec.kQty')}
           </span>
           <span className="t-xs mono-path" style={V({ color: 'var(--faint)' })}>
             {deltaTxt}
@@ -592,25 +591,25 @@ export default function Record() {
         <div className="rec-field-row">
           <Stepper value={qty} onChange={setQtyV} min={0} max={999} />
           <span className="t-muted t-sm" style={{ marginLeft: 2 }}>
-            {srcItem.name} · 单位 {srcItem.unit}
+            {fmt('rec.unitOf', { name: srcItem.name, unit: srcItem.unit })}
           </span>
         </div>
       </div>
 
       <div className="glass-card panel rec-card">
-        <span className="field-label">状态</span>
-        <Seg value={status} onChange={(v) => setStatusV(v as ItemStatus)} options={STATUS_OPTS} />
+        <span className="field-label">{t('rec.kStatus')}</span>
+        <Seg value={status} onChange={(v) => setStatusV(v as ItemStatus)} options={statusOpts} />
       </div>
 
       <div className="glass-card panel rec-card">{locRow(false)}</div>
 
       <div className="glass-card panel rec-card">
         <span className="field-label">
-          备注 <span className="hint">可选</span>
+          {t('item.notes')} <span className="hint">{t('rec.notesHint')}</span>
         </span>
         <input
           className="field rec-field"
-          placeholder="例如：借给同事 / 放进箱底"
+          placeholder={t('rec.notesPh')}
           autoComplete="off"
           maxLength={60}
           value={note}
@@ -633,17 +632,17 @@ export default function Record() {
             <Icon name="check" />
           </div>
           <h2 className="rec-succ-h">
-            已放进 <span className="mono-path">~/ {spotPathTxt.replace(/^~\/ /, '')}</span>
+            {fmt('rec.doneA', { path: spotPathTxt.replace(/^~\/ /, '') })}
           </h2>
           <p className="rec-succ-sub">
-            「{aName.trim()}」× {qty} {unit} · {cat ? catMeta(cat).label : ''} · {stLabel(status)}
+            {fmt('rec.doneSubA', { name: aName.trim(), qty, unit, cat: cat ? catMeta(cat).label : '', status: stText(status) })}
           </p>
           <div className="rec-succ-actions">
             <button type="button" className="btn btn--soft btn--lg" onClick={startA}>
-              再放一个
+              {t('rec.againA')}
             </button>
             <Link className="btn btn--primary btn--lg" to={`/browse?at=${spot}`} onClick={() => goSee(slug)}>
-              去看看它在哪
+              {t('rec.seeIt')}
             </Link>
           </div>
         </div>
@@ -656,17 +655,17 @@ export default function Record() {
           <Icon name="check" />
         </div>
         <h2 className="rec-succ-h">
-          已更新 · 现在在 <span className="mono-path">~/ {spotPathTxt.replace(/^~\/ /, '')}</span>
+          {fmt('rec.doneB', { path: spotPathTxt.replace(/^~\/ /, '') })}
         </h2>
         <p className="rec-succ-sub">
-          「{srcItem.name}」× {qty} {srcItem.unit} · {stLabel(status)}
+          {fmt('rec.doneSubB', { name: srcItem.name, qty, unit: srcItem.unit, status: stText(status) })}
         </p>
         <div className="rec-succ-actions">
           <button type="button" className="btn btn--soft btn--lg" onClick={toChooser}>
-            再动一个
+            {t('rec.againB')}
           </button>
           <Link className="btn btn--primary btn--lg" to={`/browse?at=${spot}`} onClick={() => goSee(srcItem.slug)}>
-            去看看它在哪
+            {t('rec.seeIt')}
           </Link>
         </div>
       </div>
@@ -689,28 +688,28 @@ export default function Record() {
               <div className="rec-tbrow">
                 <Wordmark />
                 <div className="hd-group">
-                  <button type="button" className="chip chip--glass" onClick={goBack} aria-label="返回上一步">
+                  <button type="button" className="chip chip--glass" onClick={goBack} aria-label={t('rec.ariaBack')}>
                     <Icon name="arrow-l" size={14} />
-                    返回
+                    {t('rec.back')}
                   </button>
                   <Link className="chip chip--glass" to="/">
                     <Icon name="home" size={14} />
-                    去中枢
+                    {t('rec.hub')}
                   </Link>
                   <Link className="chip chip--glass hide-mobile" to="/browse">
-                    去目录
+                    {t('rec.browse')}
                   </Link>
                 </div>
               </div>
               <div className="rec-ttl">
                 <div style={{ minWidth: 0 }}>
-                  <p className="section-kicker rec-eyebrow">登记 · REGISTER</p>
-                  <h1 className="rec-h1">{mode === 'A' ? '放新东西' : '挪动更新'}</h1>
+                  <p className="section-kicker rec-eyebrow">{t('rec.regKicker')}</p>
+                  <h1 className="rec-h1">{mode === 'A' ? t('rec.titleA') : t('rec.titleB')}</h1>
                   <p className="rec-sub mono-path">
-                    {mode === 'A' ? '登记一次「它在哪」' : '更新某件东西的位置与状态'}
+                    {mode === 'A' ? t('rec.subA') : t('rec.subB')}
                   </p>
                 </div>
-                <Seg className="rec-mode-seg" value={mode} onChange={onModeSeg} options={[{ value: 'A', label: '放新东西' }, { value: 'B', label: '挪动更新' }]} />
+                <Seg className="rec-mode-seg" value={mode} onChange={onModeSeg} options={[{ value: 'A', label: t('rec.titleA') }, { value: 'B', label: t('rec.titleB') }]} />
               </div>
             </div>
           </header>
@@ -725,8 +724,8 @@ export default function Record() {
                 </div>
                 <aside className="rec-rail glass-card panel">
                   <div className="rec-rail-head">
-                    <span className="rec-pv-lbl">本次登记 · DRAFT</span>
-                    <span className="t-xs t-faint">{mode === 'A' ? '放新东西' : '挪动更新'}</span>
+                    <span className="rec-pv-lbl">{t('rec.draftLbl')}</span>
+                    <span className="t-xs t-faint">{mode === 'A' ? t('rec.titleA') : t('rec.titleB')}</span>
                   </div>
                   <div className="hr" />
                   <div className="rec-rail-prev">{previewRows}</div>
@@ -755,16 +754,16 @@ export default function Record() {
         ) : null}
 
         <TabBar>
-          <TabLink to="/" icon="home" label="中枢" />
-          <TabLink to="/browse" icon="dir" label="目录" />
-          <TabLink to="/record" icon="plus" label="登记" pill current />
+          <TabLink to="/" icon="home" label={t('nav.hub')} />
+          <TabLink to="/browse" icon="dir" label={t('nav.browse')} />
+          <TabLink to="/record" icon="plus" label={t('nav.recordPill')} pill current />
         </TabBar>
       </div>
 
       <LocationPicker
         open={pickOpen}
         onClose={() => setPickOpen(false)}
-        title={mode === 'A' ? '放到哪里？' : '挪到哪儿？'}
+        title={mode === 'A' ? t('rec.toWhereA') : t('rec.toWhereB')}
         value={spot}
         onCommit={setSpot}
       />
