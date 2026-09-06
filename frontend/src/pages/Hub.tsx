@@ -18,6 +18,7 @@ import type { DirNode, Item, RecentEntry, Scene } from '../lib/types';
 import type { SearchResult } from '../api/client';
 import type { SearchModeDTO } from '../api/types';
 import { useCatalog } from '../stores/catalog';
+import { useAuth } from '../stores/auth';
 import { useToast } from '../stores/toast';
 import { useTr } from '../i18n';
 
@@ -592,9 +593,12 @@ function SettingsSheet({
     try {
       if (onTok) {
         const { token } = await api.createAccessToken();
+        // keep the current session unlocked (the token is for other LAN devices too)
+        useAuth.getState().setToken(token);
         setFreshToken(token);
         setS((p) => (p ? { ...p, token_enabled: true } : p));
       } else {
+        useAuth.getState().clearToken();
         await api.revokeAccessToken();
         setFreshToken(null);
         setS((p) => (p ? { ...p, token_enabled: false } : p));
