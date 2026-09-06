@@ -24,6 +24,15 @@ import { useTr } from '../i18n';
 
 const V = (o: Record<string, string | number>): CSSProperties => o as CSSProperties;
 
+function downloadText(filename: string, text: string) {
+  const url = URL.createObjectURL(new Blob([text], { type: 'text/plain' }));
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = filename;
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
 type Row = { kind: 'item'; slug: string } | { kind: 'space'; slug: string };
 
 export default function Hub() {
@@ -560,13 +569,17 @@ function SettingsSheet({
   const reload = useCatalog((s) => s.load);
   const { t, fmt, setLang } = useTr();
   const [s, setS] = useState<api.SettingsDTO | null>(null);
-  const [freshToken, setFreshToken] = useState<string | null>(null);
+  const [currentToken, setCurrentToken] = useState<string | null>(null);
   const importRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     if (!open) return;
-    setFreshToken(null);
+    setCurrentToken(null);
     api.fetchSettings().then(setS).catch(() => setS(null));
+    api
+      .fetchAccessToken()
+      .then(({ token }) => setCurrentToken(token))
+      .catch(() => setCurrentToken(null));
   }, [open]);
 
   const setLangPref = async (l: 'zh' | 'en') => {
@@ -595,12 +608,12 @@ function SettingsSheet({
         const { token } = await api.createAccessToken();
         // keep the current session unlocked (the token is for other LAN devices too)
         useAuth.getState().setToken(token);
-        setFreshToken(token);
+        setCurrentToken(token);
         setS((p) => (p ? { ...p, token_enabled: true } : p));
       } else {
         useAuth.getState().clearToken();
         await api.revokeAccessToken();
-        setFreshToken(null);
+        setCurrentToken(null);
         setS((p) => (p ? { ...p, token_enabled: false } : p));
       }
     } catch {
@@ -614,6 +627,17 @@ function SettingsSheet({
       toast(t('set.copied'));
     } catch {
       toast(t('set.copyFail'));
+    }
+  };
+
+  const replaceToken = async () => {
+    try {
+      const { token } = await api.replaceAccessToken();
+      useAuth.getState().setToken(token);
+      setCurrentToken(token);
+      toast(t('set.tokenReplaced'));
+    } catch {
+      toast(t('set.tokenFail'));
     }
   };
 
@@ -694,7 +718,7 @@ function SettingsSheet({
           <span className="t-sm">{t('set.tokenProtect')}</span>
           <Switch on={s?.token_enabled ?? false} onChange={toggleToken} />
         </div>
-        {freshToken ? (
+        {s?.token_enabled && currentToken ? (
           <div className="col gap6 mt8">
             <p className="t-sm t-muted" style={{ margin: 0 }}>
               {t('set.tokenShow')}
@@ -709,11 +733,23 @@ function SettingsSheet({
                 padding: '9px 12px',
               }}
             >
-              {freshToken}
+              {currentToken}
             </code>
-            <button type="button" className="btn btn--soft btn--sm" onClick={() => void copyToken(freshToken)}>
-              {t('set.copy')}
-            </button>
+            <div className="rowline gap8">
+              <button type="button" className="btn btn--soft btn--sm" onClick={() => void copyToken(currentToken)}>
+                {t('set.copy')}
+              </button>
+              <button
+                type="button"
+                className="btn btn--soft btn--sm"
+                onClick={() => downloadText(`whereisit.token`, currentToken + '\n')}
+              >
+                {t('set.download')}
+              </button>
+              <button type="button" className="btn btn--ghost btn--sm" onClick={() => void replaceToken()}>
+                {t('set.replace')}
+              </button>
+            </div>
           </div>
         ) : null}
       </div>

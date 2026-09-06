@@ -60,14 +60,38 @@ def has_token(conn: sqlite3.Connection) -> bool:
     return row is not None
 
 
-def generate_token(conn: sqlite3.Connection) -> str:
-    """Create a fresh opaque token, enable protection, and hand it back once."""
-    token = _secrets.token_urlsafe(32)
+def get_token(conn: sqlite3.Connection) -> Optional[str]:
+    """Return the current plaintext token, or None if none exists. Lets an
+    authorized session re-show / re-download a token it already created."""
+    row = conn.execute("SELECT cipher_blob FROM secrets WHERE key = 'access_token'").fetchone()
+    if row is None:
+        return None
+    return crypto.try_decrypt_secret(row["cipher_blob"])
+
+
+def _write_token(conn: sqlite3.Connection, token: str) -> None:
     conn.execute(
         "INSERT INTO secrets (key, cipher_blob) VALUES ('access_token', ?) "
         "ON CONFLICT(key) DO UPDATE SET cipher_blob = excluded.cipher_blob, updated_at = datetime('now')",
         (crypto.encrypt_secret(token),),
     )
+
+
+def ensure_token(conn: sqlite3.Connection) -> str:
+    """Stable: return the existing token if one exists, otherwise create it.
+    Never rotates an existing token — the operator can re-show/copy/download it."""
+    existing = get_token(conn)
+    token = existing if existing is not None else _secrets.token_urlsafe(32)
+    if existing is None:
+        _write_token(conn, token)
+    _put(conn, "token_enabled", True)
+    return token
+
+
+def rotate_token(conn: sqlite3.Connection) -> str:
+    """Explicitly replace the current token with a brand-new one (old ones die)."""
+    token = _secrets.token_urlsafe(32)
+    _write_token(conn, token)
     _put(conn, "token_enabled", True)
     return token
 

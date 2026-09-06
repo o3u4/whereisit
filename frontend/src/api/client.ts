@@ -67,8 +67,19 @@ export async function saveSettings(patch: { lang?: 'zh' | 'en'; token_enabled?: 
   return request<SettingsDTO>('PUT', '/settings', patch);
 }
 
+/** ensure a token exists (never rotates) and return / re-show it */
 export async function createAccessToken(): Promise<{ token: string }> {
   return request<{ token: string }>('POST', '/settings/token');
+}
+
+/** re-fetch the current token (to re-show / re-download) */
+export async function fetchAccessToken(): Promise<{ token: string }> {
+  return request<{ token: string }>('GET', '/settings/token');
+}
+
+/** explicitly rotate to a brand-new token */
+export async function replaceAccessToken(): Promise<{ token: string }> {
+  return request<{ token: string }>('POST', '/settings/token/replace');
 }
 
 export async function revokeAccessToken(): Promise<{ revoked: boolean }> {

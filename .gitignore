@@ -18,5 +18,8 @@ frontend/.vite/
 .DS_Store
 *.log
 
-# local claude-code permission allowlists
-.claude/settings.local.json
+# runtime secrets (Fernet master key)
+secret.key
+
+# claude-code
+.claude/

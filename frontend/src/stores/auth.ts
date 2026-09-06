@@ -1,5 +1,6 @@
-/* whereisit · access-token store. Token lives in sessionStorage (session-scoped),
- * attached as `Authorization: Bearer` by api/client. `unauthorized` flips when
+/* whereisit · access-token store. Token lives in localStorage so a refresh /
+ * reboot in the same browser keeps you signed in (you shouldn't lock yourself
+ * out); other LAN devices use copy / the .token file. `unauthorized` flips when
  * a guarded request returns 401 so App can show the token gate. */
 
 import { create } from 'zustand';
@@ -8,7 +9,7 @@ const KEY = 'whereisit.token';
 
 function loadToken(): string | null {
   try {
-    return sessionStorage.getItem(KEY);
+    return localStorage.getItem(KEY);
   } catch {
     return null;
   }
@@ -27,7 +28,7 @@ export const useAuth = create<AuthState>((set) => ({
   unauthorized: false,
   setToken: (t) => {
     try {
-      sessionStorage.setItem(KEY, t);
+      localStorage.setItem(KEY, t);
     } catch {
       /* private mode */
     }
@@ -35,7 +36,7 @@ export const useAuth = create<AuthState>((set) => ({
   },
   clearToken: () => {
     try {
-      sessionStorage.removeItem(KEY);
+      localStorage.removeItem(KEY);
     } catch {
       /* noop */
     }

@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import type { ChangeEvent } from 'react'
 import { BrowserRouter, Routes, Route } from 'react-router-dom'
 import Hub from './pages/Hub'
 import Browse from './pages/Browse'
@@ -36,6 +37,13 @@ function TokenGate({ onUnlock }: { onUnlock: () => void }) {
   const clearToken = useAuth((s) => s.clearToken)
   const [v, setV] = useState('')
 
+  const importFile = async (e: ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    e.target.value = ''
+    if (!file) return
+    setV((await file.text()).trim())
+  }
+
   return (
     <div className="tone-hub">
       <div className="wall" aria-hidden="true">
@@ -55,6 +63,16 @@ function TokenGate({ onUnlock }: { onUnlock: () => void }) {
             onKeyDown={(e) => {
               if (e.key === 'Enter' && v.trim()) { setToken(v.trim()); onUnlock(); }
             }}
+          />
+          <label htmlFor="tokfile" className="btn btn--ghost btn--sm" style={{ alignSelf: 'flex-start' }}>
+            {t('gate.import')}
+          </label>
+          <input
+            id="tokfile"
+            type="file"
+            accept=".token,.json,text/plain,application/json"
+            style={{ display: 'none' }}
+            onChange={(e) => void importFile(e)}
           />
           <div className="rowline gap8">
             <button
