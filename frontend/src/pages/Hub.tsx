@@ -721,6 +721,7 @@ function SettingsSheet({
     try {
       const text = await file.text();
       const obj = JSON.parse(text) as Record<string, unknown>;
+      if (!window.confirm(t('set.importWarn'))) return;
       const counts = await api.importData(obj);
       toast(
         fmt('set.importDone', {
