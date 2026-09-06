@@ -10,7 +10,10 @@ def _default_data_dir() -> Path:
     return BACKEND_DIR / "data"
 
 
-DATA_DIR = Path(os.environ.get("WHEREISIT_DATA_DIR", "")).expanduser() or _default_data_dir()
+# WHEREISIT_DATA_DIR empty/unset → canonical backend/data. (An empty string must
+# NOT fall through to Path("") which is Path(".") = cwd; check before Path().)
+WHEREISIT_DATA_DIR = os.environ.get("WHEREISIT_DATA_DIR", "").strip()
+DATA_DIR = Path(WHEREISIT_DATA_DIR).expanduser() if WHEREISIT_DATA_DIR else _default_data_dir()
 DATA_DIR.mkdir(parents=True, exist_ok=True)
 
 DB_PATH = DATA_DIR / "whereisit.db"
