@@ -70,6 +70,16 @@ def create(conn: sqlite3.Connection, username: str) -> dict:
     return {"id": user_id, "username": username, "is_admin": False, "token": token}
 
 
+def register(conn: sqlite3.Connection, username: str) -> dict:
+    """Self-signup on the login gate. Only allowed when the admin has set the
+    instance to 'auto' registration; 'manual' (or unset) means admin-issued only."""
+    from app.domains.settings import service as settings_service
+
+    if settings_service.registration(conn) != "auto":
+        raise Forbidden("请联系管理员发放令牌")
+    return create(conn, username)
+
+
 def clear_token(conn: sqlite3.Connection, target: int) -> bool:
     cur = conn.execute("DELETE FROM user_tokens WHERE user_id = ?", (target,))
     return cur.rowcount > 0

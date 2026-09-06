@@ -7,6 +7,25 @@ import Record from './pages/Record'
 import { useCatalog } from './stores/catalog'
 import { useAuth } from './stores/auth'
 import { useTr } from './i18n'
+import * as api from './api/client'
+
+function downloadText(filename: string, text: string) {
+  const url = URL.createObjectURL(new Blob([text], { type: 'text/plain' }))
+  const a = document.createElement('a')
+  a.href = url
+  a.download = filename
+  a.click()
+  URL.revokeObjectURL(url)
+}
+
+async function copyText(t: string): Promise<boolean> {
+  try {
+    await navigator.clipboard.writeText(t)
+    return true
+  } catch {
+    return false
+  }
+}
 
 /** whereisit · three-screen IA: 中枢 (/) → 目录 (/browse?at=) → 登记 (/record?at=|move=) */
 export default function App() {
@@ -36,12 +55,35 @@ function TokenGate({ onUnlock }: { onUnlock: () => void }) {
   const setToken = useAuth((s) => s.setToken)
   const clearToken = useAuth((s) => s.clearToken)
   const [v, setV] = useState('')
+  const [policy, setPolicy] = useState<'auto' | 'manual' | null>(null)
+  const [regName, setRegName] = useState('')
+  const [regToken, setRegToken] = useState<api.CreatedUser | null>(null)
+  const [regBusy, setRegBusy] = useState(false)
+  const [regErr, setRegErr] = useState('')
+
+  useEffect(() => {
+    api.fetchRegisterPolicy().then(setPolicy).catch(() => setPolicy('manual'))
+  }, [])
 
   const importFile = async (e: ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
     e.target.value = ''
     if (!file) return
     setV((await file.text()).trim())
+  }
+
+  const doRegister = async () => {
+    const n = regName.trim()
+    if (!n || regBusy) return
+    setRegBusy(true)
+    setRegErr('')
+    try {
+      setRegToken(await api.registerSelf(n))
+    } catch (err) {
+      setRegErr(err instanceof Error ? err.message : String(err))
+    } finally {
+      setRegBusy(false)
+    }
   }
 
   return (
@@ -88,6 +130,70 @@ function TokenGate({ onUnlock }: { onUnlock: () => void }) {
               {t('app.cancel')}
             </button>
           </div>
+
+          <hr style={{ border: 'none', borderTop: '1px solid rgb(255 255 255/0.6)', margin: '4px 0' }} />
+          {policy === 'manual' ? (
+            <p className="t-sm t-muted" style={{ margin: 0 }}>{t('gate.manualHint')}</p>
+          ) : regToken ? (
+            <div className="col gap6">
+              <p className="t-sm t-muted" style={{ margin: 0 }}>{t('gate.regDone')}</p>
+              <code
+                className="t-mono t-sm"
+                style={{ wordBreak: 'break-all', background: 'rgb(255 255 255/0.6)', border: '1px solid var(--border)', borderRadius: 12, padding: '9px 12px' }}
+              >
+                {regToken.token}
+              </code>
+              <div className="rowline gap8">
+                <button
+                  type="button"
+                  className="btn btn--soft btn--sm"
+                  onClick={() => { void copyText(regToken.token) }}
+                >
+                  {t('set.copy')}
+                </button>
+                <button
+                  type="button"
+                  className="btn btn--soft btn--sm"
+                  onClick={() => downloadText('whereisit.token', regToken.token + '\n')}
+                >
+                  {t('set.download')}
+                </button>
+                <button
+                  type="button"
+                  className="btn btn--primary btn--sm"
+                  style={{ marginLeft: 'auto' }}
+                  onClick={() => { setToken(regToken.token); onUnlock(); }}
+                >
+                  {t('gate.enter')}
+                </button>
+              </div>
+            </div>
+          ) : (
+            <div className="col gap6">
+              <p className="t-sm t-muted" style={{ margin: 0 }}>{t('gate.signupHint')}</p>
+              <div className="rowline gap8">
+                <input
+                  className="field"
+                  placeholder={t('gate.regPh')}
+                  value={regName}
+                  autoComplete="off"
+                  onChange={(e) => setRegName(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' && regName.trim()) void doRegister()
+                  }}
+                />
+                <button
+                  type="button"
+                  className="btn btn--soft btn--sm"
+                  disabled={!regName.trim() || regBusy}
+                  onClick={() => void doRegister()}
+                >
+                  {regBusy ? t('gate.regBusy') : t('gate.getToken')}
+                </button>
+              </div>
+              {regErr ? <p className="t-sm" style={{ margin: 0, color: 'var(--danger)' }}>{regErr}</p> : null}
+            </div>
+          )}
         </div>
       </div>
     </div>

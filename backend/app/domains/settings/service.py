@@ -39,6 +39,10 @@ def _user(conn: sqlite3.Connection, user_id: int) -> Optional[dict]:
     return dict(row) if row else None
 
 
+def registration(conn: sqlite3.Connection) -> str:
+    return _get(conn, "registration", "manual")
+
+
 def get(conn: sqlite3.Connection, user_id: int) -> dict:
     u = _user(conn, user_id) or {"username": None, "is_admin": 0}
     return {
@@ -47,10 +51,11 @@ def get(conn: sqlite3.Connection, user_id: int) -> dict:
         "lan_url": lan_url(),
         "username": u["username"],
         "is_admin": bool(u["is_admin"]),
+        "registration": registration(conn),
     }
 
 
-def put(conn: sqlite3.Connection, user_id: int, *, lang: Optional[str] = None, token_enabled: Optional[bool] = None) -> dict:
+def put(conn: sqlite3.Connection, user_id: int, *, lang: Optional[str] = None, token_enabled: Optional[bool] = None, registration: Optional[str] = None) -> dict:
     if lang is not None:
         if lang not in ("zh", "en"):
             raise BadRequest("lang must be 'zh' or 'en'")
@@ -62,6 +67,10 @@ def put(conn: sqlite3.Connection, user_id: int, *, lang: Optional[str] = None, t
             _put(conn, "token_enabled", True)
         else:
             _put(conn, "token_enabled", False)
+    if registration is not None:
+        if registration not in ("auto", "manual"):
+            raise BadRequest("registration must be 'auto' or 'manual'")
+        _put(conn, "registration", registration)
     return get(conn, user_id)
 
 

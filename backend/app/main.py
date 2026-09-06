@@ -16,6 +16,7 @@ from app.domains.items.router import router as items_router
 from app.domains.search.router import router as search_router
 from app.domains.settings.router import router as settings_router
 from app.domains.spaces.router import router as spaces_router
+from app.domains.users.router import public_router as users_public_router
 from app.domains.users.router import router as users_router
 
 
@@ -36,6 +37,7 @@ app.include_router(categories_router)
 app.include_router(settings_router)
 app.include_router(backup_router)
 app.include_router(users_router)
+app.include_router(users_public_router)
 
 
 @app.exception_handler(ApiError)

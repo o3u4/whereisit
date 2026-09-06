@@ -21,7 +21,15 @@ def get_settings(user_id: int = Depends(get_current_user)) -> dict:
 @router.put("", response_model=dict, status_code=200)
 def update_settings(payload: SettingsUpdate, user_id: int = Depends(get_current_user)) -> dict:
     with tx() as conn:
-        return ok(service.put(conn, user_id, lang=payload.lang, token_enabled=payload.token_enabled))
+        return ok(
+            service.put(
+                conn,
+                user_id,
+                lang=payload.lang,
+                token_enabled=payload.token_enabled,
+                registration=payload.registration,
+            )
+        )
 
 
 @router.get("/token", response_model=dict)

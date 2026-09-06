@@ -59,14 +59,29 @@ export interface SettingsDTO {
   lan_url: string;
   username: string | null;
   is_admin: boolean;
+  registration: 'auto' | 'manual';
 }
 
 export async function fetchSettings(): Promise<SettingsDTO> {
   return request<SettingsDTO>('GET', '/settings');
 }
 
-export async function saveSettings(patch: { lang?: 'zh' | 'en'; token_enabled?: boolean }): Promise<SettingsDTO> {
+export async function saveSettings(patch: {
+  lang?: 'zh' | 'en';
+  token_enabled?: boolean;
+  registration?: 'auto' | 'manual';
+}): Promise<SettingsDTO> {
   return request<SettingsDTO>('PUT', '/settings', patch);
+}
+
+/** self-signup mode the gate should show (public, no token needed) */
+export async function fetchRegisterPolicy(): Promise<'auto' | 'manual'> {
+  const data = await request<{ mode: 'auto' | 'manual' }>('GET', '/register-policy');
+  return data.mode;
+}
+
+export async function registerSelf(username: string): Promise<CreatedUser> {
+  return request<CreatedUser>('POST', '/register', { username });
 }
 
 /** ensure a token exists (never rotates) and return / re-show it */

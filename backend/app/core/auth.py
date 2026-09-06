@@ -6,7 +6,12 @@ from fastapi.responses import JSONResponse
 from app.db.engine import read
 from app.domains.settings import service
 
-_PUBLIC = {"/api/health", "/api/schema-version"}
+_PUBLIC = {
+    "/api/health",
+    "/api/schema-version",
+    "/api/register-policy",  # gate needs the signup mode without a token
+    "/api/register",  # self-signup (auto mode) is necessarily pre-auth
+}
 ROOT_USER_ID = 1
 
 

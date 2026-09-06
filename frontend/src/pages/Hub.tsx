@@ -699,6 +699,20 @@ function SettingsSheet({
     }
   };
 
+  const setRegistration = async (r: 'auto' | 'manual') => {
+    try {
+      setS(await api.saveSettings({ registration: r }));
+    } catch {
+      toast(t('set.tokenFail'));
+    }
+  };
+
+  const logout = () => {
+    if (!window.confirm(t('set.logoutQ'))) return;
+    useAuth.getState().clearToken();
+    window.location.reload();
+  };
+
   const doExport = async () => {
     try {
       const data = await api.exportData();
@@ -738,6 +752,14 @@ function SettingsSheet({
 
   return (
     <Sheet open={open} onClose={onClose} side="right" title={t('set.title')}>
+      {s?.username ? (
+        <div className="rowline between" style={{ gap: 8 }}>
+          <span className="t-sm t-muted ellip">{fmt('usr.you', { name: s.username })}</span>
+          <button type="button" className="btn btn--ghost btn--sm" style={{ flex: 'none' }} onClick={logout}>
+            {t('set.logout')}
+          </button>
+        </div>
+      ) : null}
       <div>
         <span className="field-label">{t('set.lang')}</span>
         <Seg
@@ -840,9 +862,17 @@ function SettingsSheet({
           <div className="col gap6">
             <span className="field-label">{t('usr.title')}</span>
             <p className="t-sm t-muted" style={{ margin: 0 }}>{t('usr.hint')}</p>
-            {s.username ? (
-              <span className="t-xs t-faint">{fmt('usr.you', { name: s.username })}</span>
-            ) : null}
+            <div className="rowline between" style={{ gap: 8 }}>
+              <span className="t-sm">{t('set.reg')}</span>
+              <Seg
+                value={s?.registration ?? 'manual'}
+                onChange={(r) => void setRegistration(r as 'auto' | 'manual')}
+                options={[
+                  { value: 'manual', label: t('set.regManual') },
+                  { value: 'auto', label: t('set.regAuto') },
+                ]}
+              />
+            </div>
             <div className="rowline gap8">
               <input
                 className="field"

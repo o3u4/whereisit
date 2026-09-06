@@ -23,6 +23,7 @@ def _reset(client):
             conn.execute(f"DELETE FROM {t}")
         conn.execute("DELETE FROM user_tokens WHERE user_id NOT IN (1)")
         conn.execute("DELETE FROM users WHERE id NOT IN (1)")
+        service.put(conn, 1, registration="manual")  # default back to admin-issued
 
 
 def _root_token(client) -> str:
@@ -146,6 +147,39 @@ def test_backup_is_scoped_to_user(client):
     assert alice_export["data"]["spaces"] == []
     # owner_id never leaks into exports
     assert all("owner_id" not in row for rows in root_export["data"].values() for row in rows)
+
+
+def test_registration_manual_by_default(client):
+    assert client.get("/api/register-policy").json()["data"]["mode"] == "manual"
+    r = client.post("/api/register", json={"username": "carol"})
+    assert r.status_code == 403
+    assert r.json()["error"]  # points the user at an admin (manual mode)
+
+
+def test_registration_auto_signup_then_manual_lock(client):
+    root = _root_token(client)  # protection on; root token in hand
+    h_root = {"Authorization": f"Bearer {root}"}
+    assert client.put("/api/settings", json={"registration": "auto"}, headers=h_root).status_code == 200
+    assert client.get("/api/register-policy").json()["data"]["mode"] == "auto"
+
+    # self-signup works without a token (public)
+    r = client.post("/api/register", json={"username": "carol"})
+    assert r.status_code == 201, r.text
+    carol = r.json()["data"]
+    h_carol = {"Authorization": f"Bearer {carol['token']}"}
+
+    # carol is her own isolated, non-admin user
+    s = client.get("/api/settings", headers=h_carol).json()["data"]
+    assert s["username"] == "carol"
+    assert s["is_admin"] is False
+    assert client.get("/api/admin/users", headers=h_carol).status_code == 403
+
+    # duplicate username conflicts
+    assert client.post("/api/register", json={"username": "carol"}).status_code == 409
+
+    # switching back to manual stops new self-signups
+    assert client.put("/api/settings", json={"registration": "manual"}, headers=h_root).status_code == 200
+    assert client.post("/api/register", json={"username": "dave"}).status_code == 403
 
 
 def test_delete_user_guards_and_removes_data(client):
