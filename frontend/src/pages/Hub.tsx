@@ -570,6 +570,9 @@ function SettingsSheet({
   const { t, fmt, setLang } = useTr();
   const [s, setS] = useState<api.SettingsDTO | null>(null);
   const [currentToken, setCurrentToken] = useState<string | null>(null);
+  const [users, setUsers] = useState<api.AdminUser[]>([]);
+  const [newName, setNewName] = useState('');
+  const [justCreated, setJustCreated] = useState<api.CreatedUser | null>(null);
   const importRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -639,6 +642,58 @@ function SettingsSheet({
       useAuth.getState().setToken(token);
       setCurrentToken(token);
       toast(t('set.tokenReplaced'));
+    } catch {
+      toast(t('set.tokenFail'));
+    }
+  };
+
+  useEffect(() => {
+    if (!open || !s?.is_admin) {
+      setUsers([]);
+      return;
+    }
+    api.fetchUsers().then(setUsers).catch(() => setUsers([]));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, s?.is_admin]);
+
+  const doCreateUser = async () => {
+    const n = newName.trim();
+    if (!n) return;
+    try {
+      const created = await api.createUser(n);
+      setJustCreated(created);
+      setNewName('');
+      api.fetchUsers().then(setUsers).catch(() => undefined);
+      toast(fmt('usr.created', { name: n }));
+    } catch {
+      toast(t('set.tokenFail'));
+    }
+  };
+
+  const userReplaceToken = async (u: api.AdminUser) => {
+    try {
+      await api.replaceUserToken(u.id);
+      toast(t('set.tokenReplaced'));
+    } catch {
+      toast(t('set.tokenFail'));
+    }
+  };
+
+  const userRevokeToken = async (u: api.AdminUser) => {
+    try {
+      await api.revokeUserToken(u.id);
+      toast(t('usr.revokeToken'));
+    } catch {
+      toast(t('set.tokenFail'));
+    }
+  };
+
+  const userDelete = async (u: api.AdminUser) => {
+    if (!window.confirm(t('usr.deleteQ'))) return;
+    try {
+      await api.deleteUser(u.id);
+      setUsers((p) => p.filter((x) => x.id !== u.id));
+      if (justCreated?.id === u.id) setJustCreated(null);
     } catch {
       toast(t('set.tokenFail'));
     }
@@ -778,6 +833,99 @@ function SettingsSheet({
           {t('set.cats')}
         </button>
       </div>
+      {s?.is_admin ? (
+        <>
+          <hr className="hr" />
+          <div className="col gap6">
+            <span className="field-label">{t('usr.title')}</span>
+            <p className="t-sm t-muted" style={{ margin: 0 }}>{t('usr.hint')}</p>
+            {s.username ? (
+              <span className="t-xs t-faint">{fmt('usr.you', { name: s.username })}</span>
+            ) : null}
+            <div className="rowline gap8">
+              <input
+                className="field"
+                placeholder={t('usr.newPh')}
+                value={newName}
+                onChange={(e) => setNewName(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' && newName.trim()) void doCreateUser();
+                }}
+              />
+              <button
+                type="button"
+                className="btn btn--primary btn--sm"
+                disabled={!newName.trim()}
+                onClick={() => void doCreateUser()}
+              >
+                {t('usr.create')}
+              </button>
+            </div>
+            {justCreated ? (
+              <div className="col gap6">
+                <p className="t-sm" style={{ margin: 0 }}>
+                  {fmt('usr.created', { name: justCreated.username })}
+                </p>
+                <p className="t-sm t-muted" style={{ margin: 0 }}>{t('usr.tokenOnce')}</p>
+                <code
+                  className="t-mono t-sm"
+                  style={{
+                    wordBreak: 'break-all',
+                    background: 'rgb(255 255 255/0.6)',
+                    border: '1px solid var(--border)',
+                    borderRadius: 12,
+                    padding: '9px 12px',
+                  }}
+                >
+                  {justCreated.token}
+                </code>
+                <div className="rowline gap8">
+                  <button type="button" className="btn btn--soft btn--sm" onClick={() => void copyToken(justCreated.token)}>
+                    {t('set.copy')}
+                  </button>
+                  <button
+                    type="button"
+                    className="btn btn--soft btn--sm"
+                    onClick={() => downloadText('whereisit.token', justCreated.token + '\n')}
+                  >
+                    {t('set.download')}
+                  </button>
+                </div>
+              </div>
+            ) : null}
+            {users.length === 0 ? (
+              <p className="t-sm t-faint">{t('usr.noUsers')}</p>
+            ) : (
+              users.map((u) => (
+                <div
+                  key={u.id}
+                  className="glass-card panel"
+                  style={{ padding: 10, display: 'flex', alignItems: 'center', gap: 8 }}
+                >
+                  <span className="grow ellip">
+                    {u.username}
+                    {u.is_admin ? <span className="tag" style={V({ color: 'var(--accent)' })}>admin</span> : null}
+                  </span>
+                  <button type="button" className="btn btn--ghost btn--sm" onClick={() => void userReplaceToken(u)}>
+                    {t('usr.replaceToken')}
+                  </button>
+                  <button type="button" className="btn btn--ghost btn--sm" onClick={() => void userRevokeToken(u)}>
+                    {t('usr.revokeToken')}
+                  </button>
+                  <button
+                    type="button"
+                    className="btn btn--ghost btn--sm"
+                    style={V({ color: 'var(--danger)' })}
+                    onClick={() => void userDelete(u)}
+                  >
+                    {t('usr.delete')}
+                  </button>
+                </div>
+              ))
+            )}
+          </div>
+        </>
+      ) : null}
       <p className="t-xs t-faint">{t('set.foot')}</p>
     </Sheet>
   );

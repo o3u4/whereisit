@@ -57,6 +57,8 @@ export interface SettingsDTO {
   lang: string;
   token_enabled: boolean;
   lan_url: string;
+  username: string | null;
+  is_admin: boolean;
 }
 
 export async function fetchSettings(): Promise<SettingsDTO> {
@@ -84,6 +86,40 @@ export async function replaceAccessToken(): Promise<{ token: string }> {
 
 export async function revokeAccessToken(): Promise<{ revoked: boolean }> {
   return request<{ revoked: boolean }>('DELETE', '/settings/token');
+}
+
+/* ---- user management (admin, per-user tokens + isolation) ----------------- */
+export interface AdminUser {
+  id: number;
+  username: string;
+  is_admin: boolean;
+}
+
+export interface CreatedUser {
+  id: number;
+  username: string;
+  token: string;
+}
+
+export async function fetchUsers(): Promise<AdminUser[]> {
+  const data = await request<{ users: AdminUser[] }>('GET', '/admin/users');
+  return data.users;
+}
+
+export async function createUser(username: string): Promise<CreatedUser> {
+  return request<CreatedUser>('POST', '/admin/users', { username });
+}
+
+export async function replaceUserToken(userId: number): Promise<{ token: string }> {
+  return request<{ token: string }>('POST', `/admin/users/${userId}/token/replace`);
+}
+
+export async function revokeUserToken(userId: number): Promise<{ revoked: boolean }> {
+  return request<{ revoked: boolean }>('DELETE', `/admin/users/${userId}/token`);
+}
+
+export async function deleteUser(userId: number): Promise<{ removed_id: number }> {
+  return request<{ removed_id: number }>('DELETE', `/admin/users/${userId}`);
 }
 
 /** full round-trippable backup object ({format, version, exported_at, data}) */
