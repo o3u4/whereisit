@@ -3,7 +3,7 @@
  * owns the global hotkeys (⌘K / Ctrl-K / "/"). */
 
 import { useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router-dom';
 import { useCatalog } from '../stores/catalog';
 import { useOverlay } from '../stores/overlay';
 import type { Item } from '../lib/types';
@@ -12,11 +12,18 @@ import { ItemSheet } from './ItemSheet';
 
 export function SearchOverlay() {
   const navigate = useNavigate();
+  const location = useLocation();
   const itemSlug = useOverlay((s) => s.itemSlug);
   const closeItem = useOverlay((s) => s.closeItem);
   const openSpot = useOverlay((s) => s.openSpot);
   const items = useCatalog((s) => s.items);
   const item = itemSlug ? (items.find((i) => i.slug === itemSlug) ?? null) : null;
+
+  // a route change means we've left the context a modal sheet was opened from —
+  // drop the global spotlight + item sheet so they never linger on another page
+  useEffect(() => {
+    useOverlay.setState({ itemSlug: null, spot: false });
+  }, [location.pathname]);
 
   useEffect(() => {
     const onKey = (e: globalThis.KeyboardEvent) => {
@@ -37,8 +44,10 @@ export function SearchOverlay() {
   }, [openSpot]);
 
   const locate = (it: Item) => {
+    // jump to the folder that holds the item — but do NOT auto-open its detail
+    // (no setReveal) and clear any stale reveal so Browse never re-shows it
     useOverlay.setState({ itemSlug: null });
-    useCatalog.getState().setReveal(it.slug);
+    useCatalog.getState().setReveal(null);
     navigate(`/browse?at=${it.spot}`);
   };
 
