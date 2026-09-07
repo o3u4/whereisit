@@ -8,6 +8,7 @@ import { useCatalog } from './stores/catalog'
 import { useAuth } from './stores/auth'
 import { useTr } from './i18n'
 import * as api from './api/client'
+import { SearchOverlay } from './components/SearchOverlay'
 
 function downloadText(filename: string, text: string) {
   const url = URL.createObjectURL(new Blob([text], { type: 'text/plain' }))
@@ -45,6 +46,7 @@ export default function App() {
         <Route path="/record" element={<Record />} />
         <Route path="*" element={<Hub />} />
       </Routes>
+      <SearchOverlay />
     </BrowserRouter>
   )
 }

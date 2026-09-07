@@ -30,7 +30,18 @@ const ST_TINT: Record<ItemStatus, string> = {
   consumed: 'var(--gone)',
 };
 
-export function ItemSheet({ item, open, onClose }: { item: Item | null; open: boolean; onClose: () => void }) {
+export function ItemSheet({
+  item,
+  open,
+  onClose,
+  onLocate,
+}: {
+  item: Item | null;
+  open: boolean;
+  onClose: () => void;
+  /** optional "jump to this item's path" action (shown when opened from search) */
+  onLocate?: (item: Item) => void;
+}) {
   const setStatus = useCatalog((s) => s.setStatus);
   const setQty = useCatalog((s) => s.setQty);
   const setNotes = useCatalog((s) => s.setNotes);
@@ -309,6 +320,12 @@ export function ItemSheet({ item, open, onClose }: { item: Item | null; open: bo
                 </span>
               ) : null}
             </span>
+            {onLocate ? (
+              <button type="button" className="btn btn--soft btn--sm" onClick={() => onLocate(item)}>
+                <Icon name="locate" size={13} />
+                {t('item.locate')}
+              </button>
+            ) : null}
             <span className="grow" />
             <button
               type="button"

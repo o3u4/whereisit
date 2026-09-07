@@ -5,20 +5,18 @@
  */
 
 import { useEffect, useMemo, useRef, useState } from 'react';
-import type { ChangeEvent, CSSProperties, KeyboardEvent, ReactNode } from 'react';
+import type { ChangeEvent, CSSProperties } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import * as api from '../api/client';
 import { Icon, CDot, TYPE_ICON, type IconName } from '../components/icons';
-import { Wordmark, Seg, Switch, Sheet, StatusBadge, Kbd, EmptyState, ToastsHost } from '../components/ui';
+import { Wordmark, Seg, Switch, Sheet, StatusBadge, Kbd, ToastsHost } from '../components/ui';
 import { TabBar, TabLink, TabAction } from '../components/TabBar';
-import { ItemSheet } from '../components/ItemSheet';
-import { catMeta, TYPE_TINT } from '../lib/meta';
-import { countItemsIn, dirById, pathNames, scenesFromTree } from '../lib/tree';
+import { TYPE_TINT } from '../lib/meta';
+import { countItemsIn, pathNames, scenesFromTree } from '../lib/tree';
 import type { DirNode, Item, RecentEntry, Scene } from '../lib/types';
-import type { SearchResult } from '../api/client';
-import type { SearchModeDTO } from '../api/types';
 import { useCatalog } from '../stores/catalog';
 import { useAuth } from '../stores/auth';
+import { useOverlay } from '../stores/overlay';
 import { useToast } from '../stores/toast';
 import { useTr } from '../i18n';
 
@@ -33,17 +31,15 @@ function downloadText(filename: string, text: string) {
   URL.revokeObjectURL(url);
 }
 
-type Row = { kind: 'item'; slug: string } | { kind: 'space'; slug: string };
-
 export default function Hub() {
   const navigate = useNavigate();
   const { t, fmt } = useTr();
   const items = useCatalog((s) => s.items);
   const tree = useCatalog((s) => s.tree);
   const recent = useCatalog((s) => s.recent);
-  const search = useCatalog((s) => s.search);
   const setReveal = useCatalog((s) => s.setReveal);
   const toast = useToast((s) => s.push);
+  const openSpot = useOverlay((s) => s.openSpot);
 
   /* recent handling row → jump to that item's spot in browse & open its detail */
   const openRecent = (r: RecentEntry) => {
@@ -55,235 +51,23 @@ export default function Hub() {
     }
   };
 
-  const [spotOpen, setSpotOpen] = useState(false);
-  const [itemSlug, setItemSlug] = useState<string | null>(null);
-  const [itemOpen, setItemOpen] = useState(false);
-  const [split, setSplit] = useState(false);
   const [existOpen, setExistOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [catOpen, setCatOpen] = useState(false);
-  const [q, setQ] = useState('');
-  const [sel, setSel] = useState(-1);
-  const [mode, setMode] = useState<SearchModeDTO>('fuzzy');
-  const [res, setRes] = useState<SearchResult | null>(null);
-  const [searching, setSearching] = useState(false);
-  const qInput = useRef<HTMLInputElement>(null);
-  const searchSeq = useRef(0);
 
-  const openSpot = (initial = '') => {
-    setQ(initial);
-    setSel(-1);
-    setSpotOpen(true);
-    window.setTimeout(() => qInput.current?.focus({ preventScroll: true }), 60);
-  };
-  const closeSpot = () => {
-    setSpotOpen(false);
-    setSplit(false);
-  };
-  const closeItem = () => {
-    setItemOpen(false);
-    setSplit(false);
-  };
-  const openItem = (slug: string) => {
-    setItemSlug(slug);
-    setItemOpen(true);
-    if (window.matchMedia('(min-width: 900px)').matches) {
-      setSplit(true);
-      setSpotOpen(true);
-    } else {
-      setSpotOpen(false);
-    }
-  };
-  const goSpace = (slug: string) => {
-    closeSpot();
-    navigate(`/browse?at=${slug}`);
-  };
-
-  /* keyboard: ⌘/Ctrl-K · '/' · Esc */
+  /* Esc closes the modal sheets (spotlight + item detail close via global overlay) */
   useEffect(() => {
     const onKey = (e: globalThis.KeyboardEvent) => {
-      const tag = (e.target as HTMLElement | null)?.tagName;
-      const typing = tag === 'INPUT' || tag === 'TEXTAREA';
-      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') {
-        e.preventDefault();
-        openSpot();
-        return;
-      }
-      if (e.key === 'Escape') {
-        if (split || itemOpen) closeItem();
-        else if (spotOpen) closeSpot();
-        else if (existOpen) setExistOpen(false);
-        else if (settingsOpen) setSettingsOpen(false);
-        return;
-      }
-      if (e.key === '/' && !typing && !spotOpen) {
-        e.preventDefault();
-        openSpot();
-      }
+      if (e.key !== 'Escape') return;
+      if (existOpen) setExistOpen(false);
+      else if (settingsOpen) setSettingsOpen(false);
+      else if (catOpen) setCatOpen(false);
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [spotOpen, itemOpen, existOpen, settingsOpen, split]);
-
-  const item = itemSlug ? (items.find((i) => i.slug === itemSlug) ?? null) : null;
+  }, [existOpen, settingsOpen, catOpen]);
 
   const scenes = useMemo(() => scenesFromTree(tree), [tree]);
-
-  /* ---- spotlight results (server-side, debounced; hot defaults stay client-side) ---- */
-  const query = q.trim().toLowerCase();
-  const rows = useMemo<Row[]>(() => {
-    if (!query) {
-      const hot = ['HDMI 线', '备用钥匙', '护照', '剪刀'];
-      const slugs = hot
-        .map((n) => items.find((i) => i.name === n)?.slug)
-        .filter((s): s is string => !!s);
-      return slugs.map((s) => ({ kind: 'item' as const, slug: s }));
-    }
-    const itemRows: Row[] = (res?.items ?? []).map((it) => ({ kind: 'item', slug: it.slug }));
-    const spaceRows: Row[] = (res?.spaces ?? []).map((sp) => ({ kind: 'space', slug: String(sp.id) }));
-    return [...itemRows, ...spaceRows];
-  }, [query, res, items]);
-
-  useEffect(() => setSel(-1), [query, mode]);
-
-  /* debounced search request (each keystroke cancels the previous) */
-  useEffect(() => {
-    if (!query) {
-      setRes(null);
-      setSearching(false);
-      return;
-    }
-    setSearching(true);
-    const seq = ++searchSeq.current;
-    const t = window.setTimeout(async () => {
-      try {
-        const r = await search(query, mode);
-        if (seq === searchSeq.current) setRes(r);
-      } finally {
-        if (seq === searchSeq.current) setSearching(false);
-      }
-    }, 150);
-    return () => window.clearTimeout(t);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [query, mode, search]);
-
-  const moveSel = (d: number) => {
-    if (!rows.length) return;
-    setSel((prev) => {
-      const n = rows.length;
-      return ((prev + d) % n + n) % n;
-    });
-  };
-  const openSel = (i: number) => {
-    const r = rows[i];
-    if (!r) return;
-    if (r.kind === 'item') openItem(r.slug);
-    else goSpace(r.slug);
-  };
-  const onSpotKey = (e: KeyboardEvent<HTMLInputElement>) => {
-    if (e.key === 'ArrowDown') {
-      e.preventDefault();
-      moveSel(1);
-    } else if (e.key === 'ArrowUp') {
-      e.preventDefault();
-      moveSel(-1);
-    } else if (e.key === 'Enter') {
-      e.preventDefault();
-      openSel(sel >= 0 ? sel : 0);
-    }
-  };
-
-  const itemPathOf = (it: Item) => '~/ ' + pathNames(tree, it.spot).join(' / ');
-
-  const rowOf = (r: Row, idx: number): ReactNode => {
-    if (r.kind === 'item') {
-      const it = items.find((x) => x.slug === r.slug);
-      if (!it) return null;
-      const cat = catMeta(it.cat);
-      return (
-        <button key={r.slug} type="button" className={`result-row${idx === sel ? ' sel' : ''}`} onClick={() => openSel(idx)}>
-          <span className="rr-glyph" style={V({ ['--tc']: cat.tint })}>
-            <Icon name={cat.icon} />
-          </span>
-          <span className="rr-main">
-            <span className="rr-name">
-              {it.name} <span className="t-xs" style={V({ color: 'var(--faint)', fontFamily: 'var(--font-mono)' })}>×{it.qty}</span>
-            </span>
-            <span className="rr-sub">
-              <StatusBadge cls={it.status} label={t('status.' + it.status)} />
-              <span className="mono-path ellip">{itemPathOf(it)}</span>
-            </span>
-          </span>
-          <span className="tag" style={V({ color: 'var(--muted)' })}>
-            {cat.label}
-          </span>
-          <Icon name="chev" size={16} style={V({ color: 'var(--faint)', flex: 'none' })} />
-        </button>
-      );
-    }
-    const node = dirById(tree, r.slug);
-    if (!node) return null;
-    return (
-      <button key={r.slug} type="button" className={`result-row${idx === sel ? ' sel' : ''}`} onClick={() => openSel(idx)}>
-        <span className="rr-glyph" style={V({ ['--tc']: 'var(--accent)' })}>
-          <Icon name={TYPE_ICON[node.type]} />
-        </span>
-        <span className="rr-main">
-          <span className="rr-name">{node.name}</span>
-          <span className="rr-sub">
-            <span className="t-xs">{fmt('hub.spaceRow', { n: node.kids.length })}</span>
-          </span>
-        </span>
-        <Icon name="chev" size={16} style={V({ color: 'var(--faint)', flex: 'none' })} />
-      </button>
-    );
-  };
-
-  const groupHead = (label: string) => (
-    <div key={`h-${label}`} className="t-xs section-kicker" style={{ padding: '6px 10px 2px' }}>
-      {label}
-    </div>
-  );
-
-  const itemRows = rows.filter((r) => r.kind === 'item');
-  const spaceRows = rows.filter((r) => r.kind === 'space');
-  const renderList = (list: Row[]) =>
-    list.map((r) => rowOf(r, rows.indexOf(r)));
-
-  let spotBody: ReactNode;
-  if (!query) {
-    spotBody = (
-      <>
-        {groupHead(t('hub.recentLookup'))}
-        {renderList(rows)}
-      </>
-    );
-  } else if (rows.length === 0) {
-    spotBody = searching ? (
-      <p className="t-sm t-faint" style={{ padding: '12px 10px' }}>{t('hub.searching')}</p>
-    ) : (
-      <EmptyState
-        icon="search"
-        title={fmt('hub.notFound', { q: q.trim() })}
-        hint={t('hub.notFoundHint')}
-        action={
-          <Link className="btn btn--soft btn--sm mt8" to="/browse">
-            {t('hub.goBrowse')}
-          </Link>
-        }
-      />
-    );
-  } else {
-    spotBody = (
-      <>
-        {groupHead(fmt('hub.groupItem', { n: itemRows.length }))}
-        {renderList(itemRows)}
-        {groupHead(fmt('hub.groupSpace', { n: spaceRows.length }))}
-        {renderList(spaceRows)}
-      </>
-    );
-  }
 
   const QUICK = ['钥匙', 'HDMI 线', '护照', '剪刀'];
   const sceneCnt = (sc: Scene) => countItemsIn(tree, items, sc.slug);
@@ -467,79 +251,6 @@ export default function Hub() {
         </TabBar>
       </div>
 
-      {/* spotlight */}
-      <div
-        className={`dim${spotOpen && !split ? ' show' : ''}`}
-        onClick={closeSpot}
-        aria-hidden={!(spotOpen && !split)}
-      />
-      <div
-        className={`spot glass-panel${spotOpen ? ' show' : ''}${split ? ' spot--left' : ''}`}
-        role="dialog"
-        aria-modal="true"
-        aria-label={t('hub.spotAria')}
-      >
-        <div style={{ padding: '12px 14px 4px' }}>
-          <div className="rowline" style={V({ gap: 10 })}>
-            <Icon name="search" size={20} style={V({ color: 'var(--accent)', flex: 'none' })} />
-            <input
-              ref={qInput}
-              value={q}
-              onChange={(e) => setQ(e.target.value)}
-              className="field"
-              placeholder={t('hub.spotPh')}
-              autoComplete="off"
-              aria-label={t('hub.spotInAria')}
-              style={V({ flex: '1', minHeight: 44 })}
-              onKeyDown={onSpotKey}
-            />
-            <Kbd>esc</Kbd>
-          </div>
-          <div className="spot-mode" style={{ marginTop: 10 }}>
-            <Seg
-              fluid
-              value={mode}
-              onChange={(v) => {
-                setMode(v as SearchModeDTO);
-                setSel(-1);
-                setRes(null);
-              }}
-              options={[
-                { value: 'fuzzy', label: t('mode.fuzzy') },
-                { value: 'exact', label: t('mode.exact') },
-                { value: 'category', label: t('mode.category') },
-                { value: 'existence', label: t('mode.existence') },
-              ]}
-            />
-          </div>
-        </div>
-        <div className="spot-body" style={{ paddingTop: 8 }}>
-          {spotBody}
-        </div>
-        <div
-          style={V({
-            padding: '8px 18px 14px',
-            borderTop: '1px solid rgb(255 255 255/0.6)',
-            display: 'flex',
-            gap: 14,
-            alignItems: 'center',
-          })}
-          className="t-xs t-faint"
-        >
-          <span className="rowline gap6">
-            <Kbd>↑</Kbd>
-            <Kbd>↓</Kbd> {t('hub.kbdSelect')}
-          </span>
-          <span className="rowline gap6">
-            <Kbd>↵</Kbd> {t('hub.kbdOpen')}
-          </span>
-          <span className="grow" />
-          <span className="t-mono">{t('hub.kbdHint')}</span>
-        </div>
-      </div>
-
-      <ItemSheet item={item} open={itemOpen} onClose={closeItem} />
-
       <SettingsSheet
         open={settingsOpen}
         onClose={() => setSettingsOpen(false)}
@@ -549,7 +260,7 @@ export default function Hub() {
         }}
       />
       <CategorySheet open={catOpen} onClose={() => setCatOpen(false)} />
-      <ExistSheet open={existOpen} onClose={() => setExistOpen(false)} onOpenItem={openItem} />
+      <ExistSheet open={existOpen} onClose={() => setExistOpen(false)} onOpenItem={(slug) => useOverlay.getState().openItem(slug)} />
       <ToastsHost />
     </div>
   );
