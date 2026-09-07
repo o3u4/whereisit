@@ -115,6 +115,7 @@ export default function Browse() {
   const spaceId = cur ? (Number.isNaN(Number(cur)) ? null : Number(cur)) : null;
   const [spaceImgNonce, setSpaceImgNonce] = useState(0);
   const [spaceImgAct, setSpaceImgAct] = useState(false);
+  const spimgInput = useRef<HTMLInputElement>(null);
   const { url: spaceImg, hasImage: spaceHasImage } = useMedia('space', spaceId, !!spaceId, spaceImgNonce);
 
   const pickSpaceImg = async (e: ChangeEvent<HTMLInputElement>) => {
@@ -745,9 +746,17 @@ export default function Browse() {
       {spaceImgAct && spaceId != null ? (
         <Sheet open={spaceImgAct} onClose={() => setSpaceImgAct(false)} side="bottom" title={t('space.imgActions')} grab>
           <div className="col gap6">
-            <label htmlFor="spimg" className="btn btn--soft btn--lg" style={{ width: '100%' }} onClick={() => setSpaceImgAct(false)}>
+            <button
+              type="button"
+              className="btn btn--soft btn--lg"
+              style={{ width: '100%' }}
+              onClick={() => {
+                setSpaceImgAct(false);
+                spimgInput.current?.click();
+              }}
+            >
               {spaceHasImage ? t('space.imgChange') : t('space.imgUpload')}
-            </label>
+            </button>
             {spaceHasImage ? (
               <button
                 type="button"
@@ -761,7 +770,7 @@ export default function Browse() {
                 {t('space.imgRemove')}
               </button>
             ) : null}
-            <input id="spimg" type="file" accept="image/*" style={{ display: 'none' }} onChange={(e) => void pickSpaceImg(e)} />
+            <input ref={spimgInput} type="file" accept="image/*" style={{ display: 'none' }} onChange={(e) => void pickSpaceImg(e)} />
           </div>
         </Sheet>
       ) : null}

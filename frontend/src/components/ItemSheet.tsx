@@ -9,7 +9,7 @@
  * a def attr; insert order = display order, so new attributes append at the end.
  */
 
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import type { ChangeEvent, CSSProperties } from 'react';
 import * as api from '../api/client';
 import { useMedia } from '../hooks/useMedia';
@@ -75,6 +75,7 @@ export function ItemSheet({
   const [qty, setQtyLocal] = useState(item ? item.qty : 1);
   const [imgNonce, setImgNonce] = useState(0);
   const [imgAct, setImgAct] = useState(false);
+  const imgInput = useRef<HTMLInputElement>(null);
   useEffect(() => {
     if (item) setQtyLocal(item.qty);
   }, [item?.qty]);
@@ -332,11 +333,13 @@ export function ItemSheet({
               <span className="item-img-ghost">
                 <Icon name="image" size={28} />
                 <span className="t-xs t-muted">{t('item.imgHint')}</span>
-                <label htmlFor="itmimg" className="btn btn--soft btn--sm">{t('item.imgUpload')}</label>
+                <button type="button" className="btn btn--soft btn--sm" onClick={() => imgInput.current?.click()}>
+                  {t('item.imgUpload')}
+                </button>
               </span>
             )}
             <input
-              id="itmimg"
+              ref={imgInput}
               type="file"
               accept="image/*"
               style={{ display: 'none' }}
@@ -345,9 +348,17 @@ export function ItemSheet({
             {imgAct ? (
               <Sheet open={imgAct} onClose={() => setImgAct(false)} side="bottom" title={t('item.imgActions')} grab>
                 <div className="col gap6">
-                  <label htmlFor="itmimg" className="btn btn--soft btn--lg" style={{ width: '100%' }} onClick={() => setImgAct(false)}>
+                  <button
+                    type="button"
+                    className="btn btn--soft btn--lg"
+                    style={{ width: '100%' }}
+                    onClick={() => {
+                      setImgAct(false);
+                      imgInput.current?.click();
+                    }}
+                  >
                     {t('item.imgChange')}
-                  </label>
+                  </button>
                   <button type="button" className="btn btn--ghost btn--lg" style={{ width: '100%', color: 'var(--danger)' }} onClick={() => { setImgAct(false); void pickRemoveImg(); }}>
                     {t('item.imgRemove')}
                   </button>
