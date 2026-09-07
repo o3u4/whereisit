@@ -416,7 +416,7 @@ export default function Browse() {
     <div className="brw-head">
       <button
         type="button"
-        className="brw-cglyph brw-cglyph--btn"
+        className="brw-cglyph brw-cglyph--btn brw-cglyph--hdr"
         style={V({ ['--tc']: TYPE_TINT[curNode.type] })}
         onClick={() => setSpaceImgAct(true)}
         aria-label={t('space.imgActions')}
@@ -770,10 +770,10 @@ export default function Browse() {
                 {t('space.imgRemove')}
               </button>
             ) : null}
-            <input ref={spimgInput} type="file" accept="image/*" style={{ display: 'none' }} onChange={(e) => void pickSpaceImg(e)} />
-          </div>
+            </div>
         </Sheet>
       ) : null}
+      <input ref={spimgInput} type="file" accept="image/*" style={{ display: 'none' }} onChange={(e) => void pickSpaceImg(e)} />
 
       <ToastsHost />
     </div>
