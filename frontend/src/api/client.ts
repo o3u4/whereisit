@@ -137,6 +137,49 @@ export async function deleteUser(userId: number): Promise<{ removed_id: number }
   return request<{ removed_id: number }>('DELETE', `/admin/users/${userId}`);
 }
 
+/* ---- preview images (per entity, on-disk, owner-scoped) ------------------- */
+export type MediaEntity = 'space' | 'lot';
+
+function mediaUrl(type: MediaEntity, id: number) {
+  return `${BASE}/media?entity_type=${type}&entity_id=${id}`;
+}
+
+async function mediaFail(res: Response) {
+  if (res.status === 401) useAuth.getState().setUnauthorized(true);
+  const json: unknown = await res.json().catch(() => ({}));
+  const msg = json && typeof json === 'object' && 'error' in json && typeof json.error === 'string'
+    ? json.error
+    : `请求失败 (${res.status})`;
+  throw new ApiError(msg);
+}
+
+async function mediaAuth(): Promise<Record<string, string>> {
+  const t = getToken();
+  return t ? { Authorization: `Bearer ${t}` } : {};
+}
+
+export async function uploadMedia(type: MediaEntity, id: number, file: File): Promise<void> {
+  const form = new FormData();
+  form.append('file', file);
+  const res = await fetch(mediaUrl(type, id), { method: 'PUT', headers: await mediaAuth(), body: form });
+  if (!res.ok) await mediaFail(res);
+}
+
+export async function deleteMedia(type: MediaEntity, id: number): Promise<boolean> {
+  const res = await fetch(mediaUrl(type, id), { method: 'DELETE', headers: await mediaAuth() });
+  if (!res.ok) await mediaFail(res);
+  const data = (await res.json().catch(() => ({}))) as { data?: { removed?: boolean } };
+  return data.data?.removed ?? false;
+}
+
+/** fetch the image bytes as a blob (Authorization stays on the header). */
+export async function fetchMediaBlob(type: MediaEntity, id: number): Promise<Blob | null> {
+  const res = await fetch(mediaUrl(type, id), { headers: await mediaAuth() });
+  if (res.status === 404) return null;
+  if (!res.ok) await mediaFail(res);
+  return res.blob();
+}
+
 /** full round-trippable backup object ({format, version, exported_at, data}) */
 export async function exportData<T = Record<string, unknown>>(): Promise<T> {
   return request<T>('GET', '/export');

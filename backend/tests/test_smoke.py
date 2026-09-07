@@ -10,9 +10,9 @@ def test_health_and_migrations():
         assert health.status_code == 200
         body = health.json()
         assert body["ok"] is True
-        assert body["schema_version"] == 2
+        assert body["schema_version"] == 3
 
 
 def test_schema_tables_created():
-    assert migrations.current_version() == 2
+    assert migrations.current_version() == 3
     # Triggering current_version opens the same test DB the migration created.

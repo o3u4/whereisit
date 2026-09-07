@@ -8,6 +8,7 @@
  */
 
 import { Fragment, useEffect, useRef, useState } from 'react';
+import type { ChangeEvent } from 'react';
 import type { CSSProperties, DragEvent, ReactNode } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { Icon, TYPE_ICON } from '../components/icons';
@@ -17,6 +18,8 @@ import { ItemSheet } from '../components/ItemSheet';
 import { catMeta, TYPE_TINT } from '../lib/meta';
 import { chainOf, countItemsIn, dirById, directItemsIn, pathNames } from '../lib/tree';
 import type { DirNode, Item } from '../lib/types';
+import * as api from '../api/client';
+import { useMedia } from '../hooks/useMedia';
 import { useCatalog } from '../stores/catalog';
 import { useOverlay } from '../stores/overlay';
 import { useToast } from '../stores/toast';
@@ -108,6 +111,28 @@ export default function Browse() {
     setItemSlug(slug);
   };
   const item = itemSlug ? itemOf(itemSlug) : null;
+
+  const spaceId = cur ? (Number.isNaN(Number(cur)) ? null : Number(cur)) : null;
+  const [spaceImgNonce, setSpaceImgNonce] = useState(0);
+  const { url: spaceImg, hasImage: spaceHasImage } = useMedia('space', spaceId, !!spaceId, spaceImgNonce);
+
+  const pickSpaceImg = async (e: ChangeEvent<HTMLInputElement>) => {
+    const f = e.target.files?.[0];
+    e.target.value = '';
+    if (!f || spaceId == null) return;
+    try {
+      await api.uploadMedia('space', spaceId, f);
+      setSpaceImgNonce((n) => n + 1);
+    } catch {
+      toast(t('item.imgFail'));
+    }
+  };
+
+  const pickRemoveSpaceImg = async () => {
+    if (spaceId == null) return;
+    await api.deleteMedia('space', spaceId);
+    setSpaceImgNonce((n) => n + 1);
+  };
 
   /* -------- inline batch merge (batch twin of item→item drag) ----------- */
   const keepItem = keepSlug ? itemOf(keepSlug) : null;
@@ -388,7 +413,7 @@ export default function Browse() {
   const containerHead = cur && curNode ? (
     <div className="brw-head">
       <span className="brw-cglyph" style={V({ ['--tc']: TYPE_TINT[curNode.type] })} aria-hidden="true">
-        {dirIcon(curNode)}
+        {spaceHasImage && spaceImg ? <img className="brw-cglyph-img" src={spaceImg} alt="" /> : dirIcon(curNode)}
       </span>
       <span className="tt">
         <b>{curNode.name}</b>
@@ -403,6 +428,19 @@ export default function Browse() {
           <span className="badge badge--count">{fmt('browse.subspaces', { n: curNode.kids.length })}</span>
         ) : null}
       </span>
+      {spaceId != null ? (
+        <span className="rowline gap6" style={{ marginLeft: 10 }}>
+          <label htmlFor="spimg" className="btn btn--ghost btn--sm">
+            {spaceHasImage ? t('space.imgChange') : t('space.imgUpload')}
+          </label>
+          {spaceHasImage ? (
+            <button type="button" className="btn btn--ghost btn--sm" onClick={() => void pickRemoveSpaceImg()}>
+              {t('space.imgRemove')}
+            </button>
+          ) : null}
+          <input id="spimg" type="file" accept="image/*" style={{ display: 'none' }} onChange={(e) => void pickSpaceImg(e)} />
+        </span>
+      ) : null}
     </div>
   ) : null;
 

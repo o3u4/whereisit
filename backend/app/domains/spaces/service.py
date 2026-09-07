@@ -5,6 +5,7 @@ from typing import Optional
 
 from app.core.errors import BadRequest, NotFound
 from app.core.normalize import norm_text
+from app.domains.media import service as media_service
 
 
 def require(conn: sqlite3.Connection, user_id: int, space_id: int) -> dict:
@@ -169,6 +170,10 @@ def delete(conn: sqlite3.Connection, user_id: int, space_id: int, *, mode: str =
         )
         for sid in removed:  # deepest-first order avoids spaces.parent_id FK violations
             conn.execute("DELETE FROM spaces WHERE id = ? AND owner_id = ?", (sid, user_id))
+        for sid in removed:
+            media_service.delete(conn, user_id, "space", sid)
+        for lid in lot_ids:
+            media_service.delete(conn, user_id, "lot", lid)
 
     return {"deleted": space_id, "removed_ids": removed, "removed_lots": len(lot_ids)}
 

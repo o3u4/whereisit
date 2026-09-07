@@ -7,6 +7,7 @@ from typing import Optional
 from app.core.errors import BadRequest, NotFound
 from app.core.normalize import norm_text
 from app.domains.categories import service as cat_service
+from app.domains.media import service as media_service
 from app.domains.spaces.service import require as require_space
 
 _ALIAS_SPLIT = re.compile(r"[，,;；、|]+")
@@ -120,6 +121,7 @@ def remove(conn: sqlite3.Connection, user_id: int, *, lot_id: int) -> dict:
         (lot_id, user_id),
     )
     conn.execute("DELETE FROM item_lots WHERE id = ? AND owner_id = ?", (lot_id, user_id))
+    media_service.delete(conn, user_id, "lot", lot_id)
     return {"removed_id": lot_id}
 
 

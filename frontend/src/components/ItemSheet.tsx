@@ -10,7 +10,9 @@
  */
 
 import { useEffect, useState } from 'react';
-import type { CSSProperties } from 'react';
+import type { ChangeEvent, CSSProperties } from 'react';
+import * as api from '../api/client';
+import { useMedia } from '../hooks/useMedia';
 import { Sheet, Stepper, StatusBadge } from './ui';
 import { Icon } from './icons';
 import { catMeta } from '../lib/meta';
@@ -71,9 +73,29 @@ export function ItemSheet({
   const [newKey, setNewKey] = useState('');
   const [newVal, setNewVal] = useState('');
   const [qty, setQtyLocal] = useState(item ? item.qty : 1);
+  const [imgNonce, setImgNonce] = useState(0);
   useEffect(() => {
     if (item) setQtyLocal(item.qty);
   }, [item?.qty]);
+  const { url: imgUrl, hasImage } = useMedia('lot', item ? Number(item.slug) : null, !!item, imgNonce);
+
+  const pickImg = async (e: ChangeEvent<HTMLInputElement>) => {
+    const f = e.target.files?.[0];
+    e.target.value = '';
+    if (!f || !item) return;
+    try {
+      await api.uploadMedia('lot', Number(item.slug), f);
+      setImgNonce((n) => n + 1);
+    } catch {
+      toast(t('item.imgFail'));
+    }
+  };
+
+  const pickRemoveImg = async () => {
+    if (!item) return;
+    await api.deleteMedia('lot', Number(item.slug));
+    setImgNonce((n) => n + 1);
+  };
 
   if (!item) return null;
   const cat = catMeta(item.cat);
@@ -301,10 +323,30 @@ export function ItemSheet({
       >
         <div className="sheet-body">
           <div className="item-img">
-            <span className="item-img-ghost">
-              <Icon name="image" size={28} />
-              <span className="t-xs t-muted">{t('item.imgHint')}</span>
-            </span>
+            {hasImage && imgUrl ? (
+              <span className="item-img-now">
+                <img src={imgUrl} alt={item.name} />
+                <span className="item-img-actions rowline gap6">
+                  <label htmlFor="itmimg" className="btn btn--ghost btn--sm">{t('item.imgChange')}</label>
+                  <button type="button" className="btn btn--ghost btn--sm" onClick={() => void pickRemoveImg()}>
+                    {t('item.imgRemove')}
+                  </button>
+                </span>
+              </span>
+            ) : (
+              <span className="item-img-ghost">
+                <Icon name="image" size={28} />
+                <span className="t-xs t-muted">{t('item.imgHint')}</span>
+                <label htmlFor="itmimg" className="btn btn--soft btn--sm">{t('item.imgUpload')}</label>
+              </span>
+            )}
+            <input
+              id="itmimg"
+              type="file"
+              accept="image/*"
+              style={{ display: 'none' }}
+              onChange={(e) => void pickImg(e)}
+            />
           </div>
           <div className="row gap10" style={{ alignItems: 'center' }}>
             <span className="brw-cglyph" style={tintVar}>

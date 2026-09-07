@@ -755,6 +755,15 @@ main { flex: 1; }
   display: flex; flex-direction: column; align-items: center; gap: 8px;
   color: var(--faint);
 }
+.item-img-now { position: relative; width: 100%; height: 100%; display: block; }
+.item-img-now img { display: block; width: 100%; height: 100%; object-fit: cover; }
+.item-img-actions {
+  position: absolute; left: 10px; bottom: 10px;
+}
+.brw-cglyph-img { width: 100%; height: 100%; object-fit: cover; border-radius: 13px; display: block; }
+.brw-cglyph-img-overlay { position: relative; }
+.brw-cglyph:has(.brw-cglyph-img) { padding: 0; }
+.brw-cglyph { overflow: hidden; }
 
 .menu {
   position: absolute; z-index: 120;
