@@ -18,6 +18,7 @@ import { catMeta, TYPE_TINT } from '../lib/meta';
 import { chainOf, countItemsIn, dirById, directItemsIn, pathNames } from '../lib/tree';
 import type { DirNode, Item } from '../lib/types';
 import { useCatalog } from '../stores/catalog';
+import { useOverlay } from '../stores/overlay';
 import { useToast } from '../stores/toast';
 import { useTr } from '../i18n';
 
@@ -96,7 +97,16 @@ export default function Browse() {
   const itemOf = (slug: string) => items.find((i) => i.slug === slug) ?? null;
   const curNode = cur ? dirById(tree, cur) : null;
   const direct = cur ? directItemsIn(items, cur) : [];
-  const openItem = (slug: string) => setItemSlug(slug);
+  const globalSlug = useOverlay((s) => s.itemSlug);
+  /* only the topmost detail shows: a search-opened (global) detail closes this
+     page's local one; picking an item here closes any global detail under it */
+  useEffect(() => {
+    if (globalSlug) setItemSlug(null);
+  }, [globalSlug]);
+  const openItem = (slug: string) => {
+    useOverlay.getState().closeItem();
+    setItemSlug(slug);
+  };
   const item = itemSlug ? itemOf(itemSlug) : null;
 
   /* -------- inline batch merge (batch twin of item→item drag) ----------- */
