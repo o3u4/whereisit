@@ -12,7 +12,7 @@ import type { ChangeEvent } from 'react';
 import type { CSSProperties, DragEvent, ReactNode } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { Icon, TYPE_ICON } from '../components/icons';
-import { Wordmark, Seg, StatusBadge, ToastsHost } from '../components/ui';
+import { Wordmark, Seg, Sheet, StatusBadge, ToastsHost } from '../components/ui';
 import { TabBar, TabLink } from '../components/TabBar';
 import { ItemSheet } from '../components/ItemSheet';
 import { catMeta, TYPE_TINT } from '../lib/meta';
@@ -114,6 +114,7 @@ export default function Browse() {
 
   const spaceId = cur ? (Number.isNaN(Number(cur)) ? null : Number(cur)) : null;
   const [spaceImgNonce, setSpaceImgNonce] = useState(0);
+  const [spaceImgAct, setSpaceImgAct] = useState(false);
   const { url: spaceImg, hasImage: spaceHasImage } = useMedia('space', spaceId, !!spaceId, spaceImgNonce);
 
   const pickSpaceImg = async (e: ChangeEvent<HTMLInputElement>) => {
@@ -412,9 +413,15 @@ export default function Browse() {
 
   const containerHead = cur && curNode ? (
     <div className="brw-head">
-      <span className="brw-cglyph" style={V({ ['--tc']: TYPE_TINT[curNode.type] })} aria-hidden="true">
+      <button
+        type="button"
+        className="brw-cglyph brw-cglyph--btn"
+        style={V({ ['--tc']: TYPE_TINT[curNode.type] })}
+        onClick={() => setSpaceImgAct(true)}
+        aria-label={t('space.imgActions')}
+      >
         {spaceHasImage && spaceImg ? <img className="brw-cglyph-img" src={spaceImg} alt="" /> : dirIcon(curNode)}
-      </span>
+      </button>
       <span className="tt">
         <b>{curNode.name}</b>
         <span className="t-mono sub">
@@ -428,19 +435,6 @@ export default function Browse() {
           <span className="badge badge--count">{fmt('browse.subspaces', { n: curNode.kids.length })}</span>
         ) : null}
       </span>
-      {spaceId != null ? (
-        <span className="rowline gap6" style={{ marginLeft: 10 }}>
-          <label htmlFor="spimg" className="btn btn--ghost btn--sm">
-            {spaceHasImage ? t('space.imgChange') : t('space.imgUpload')}
-          </label>
-          {spaceHasImage ? (
-            <button type="button" className="btn btn--ghost btn--sm" onClick={() => void pickRemoveSpaceImg()}>
-              {t('space.imgRemove')}
-            </button>
-          ) : null}
-          <input id="spimg" type="file" accept="image/*" style={{ display: 'none' }} onChange={(e) => void pickSpaceImg(e)} />
-        </span>
-      ) : null}
     </div>
   ) : null;
 
@@ -747,6 +741,30 @@ export default function Browse() {
       </div>
 
       <ItemSheet item={item} open={item !== null} onClose={() => setItemSlug(null)} />
+
+      {spaceImgAct && spaceId != null ? (
+        <Sheet open={spaceImgAct} onClose={() => setSpaceImgAct(false)} side="bottom" title={t('space.imgActions')} grab>
+          <div className="col gap6">
+            <label htmlFor="spimg" className="btn btn--soft btn--lg" style={{ width: '100%' }} onClick={() => setSpaceImgAct(false)}>
+              {spaceHasImage ? t('space.imgChange') : t('space.imgUpload')}
+            </label>
+            {spaceHasImage ? (
+              <button
+                type="button"
+                className="btn btn--ghost btn--lg"
+                style={{ width: '100%', color: 'var(--danger)' }}
+                onClick={() => {
+                  setSpaceImgAct(false);
+                  void pickRemoveSpaceImg();
+                }}
+              >
+                {t('space.imgRemove')}
+              </button>
+            ) : null}
+            <input id="spimg" type="file" accept="image/*" style={{ display: 'none' }} onChange={(e) => void pickSpaceImg(e)} />
+          </div>
+        </Sheet>
+      ) : null}
 
       <ToastsHost />
     </div>

@@ -74,6 +74,7 @@ export function ItemSheet({
   const [newVal, setNewVal] = useState('');
   const [qty, setQtyLocal] = useState(item ? item.qty : 1);
   const [imgNonce, setImgNonce] = useState(0);
+  const [imgAct, setImgAct] = useState(false);
   useEffect(() => {
     if (item) setQtyLocal(item.qty);
   }, [item?.qty]);
@@ -324,15 +325,9 @@ export function ItemSheet({
         <div className="sheet-body">
           <div className="item-img">
             {hasImage && imgUrl ? (
-              <span className="item-img-now">
+              <button type="button" className="item-img-now" onClick={() => setImgAct(true)} aria-label={t('item.imgActions')}>
                 <img src={imgUrl} alt={item.name} />
-                <span className="item-img-actions rowline gap6">
-                  <label htmlFor="itmimg" className="btn btn--ghost btn--sm">{t('item.imgChange')}</label>
-                  <button type="button" className="btn btn--ghost btn--sm" onClick={() => void pickRemoveImg()}>
-                    {t('item.imgRemove')}
-                  </button>
-                </span>
-              </span>
+              </button>
             ) : (
               <span className="item-img-ghost">
                 <Icon name="image" size={28} />
@@ -347,6 +342,18 @@ export function ItemSheet({
               style={{ display: 'none' }}
               onChange={(e) => void pickImg(e)}
             />
+            {imgAct ? (
+              <Sheet open={imgAct} onClose={() => setImgAct(false)} side="bottom" title={t('item.imgActions')} grab>
+                <div className="col gap6">
+                  <label htmlFor="itmimg" className="btn btn--soft btn--lg" style={{ width: '100%' }} onClick={() => setImgAct(false)}>
+                    {t('item.imgChange')}
+                  </label>
+                  <button type="button" className="btn btn--ghost btn--lg" style={{ width: '100%', color: 'var(--danger)' }} onClick={() => { setImgAct(false); void pickRemoveImg(); }}>
+                    {t('item.imgRemove')}
+                  </button>
+                </div>
+              </Sheet>
+            ) : null}
           </div>
           <div className="row gap10" style={{ alignItems: 'center' }}>
             <span className="brw-cglyph" style={tintVar}>

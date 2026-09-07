@@ -8,6 +8,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import type { ChangeEvent, CSSProperties } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import * as api from '../api/client';
+import { useMedia } from '../hooks/useMedia';
 import { Icon, CDot, TYPE_ICON, type IconName } from '../components/icons';
 import { Wordmark, Seg, Switch, Sheet, StatusBadge, Kbd, ToastsHost } from '../components/ui';
 import { TabBar, TabLink, TabAction } from '../components/TabBar';
@@ -31,10 +32,56 @@ function downloadText(filename: string, text: string) {
   URL.revokeObjectURL(url);
 }
 
+function SceneCard({ sc, i }: { sc: Scene; i: number }) {
+  const { fmt } = useTr();
+  const tree = useCatalog((s) => s.tree);
+  const items = useCatalog((s) => s.items);
+  const { url, hasImage } = useMedia('space', Number(sc.slug), true);
+  const kids = sc.kids;
+  return (
+    <article className={`scene-card in d${(i % 3) + 2}`} style={V({ ['--tint-a']: sc.tintA, ['--tint-b']: sc.tintB })}>
+      <Link className="scene-cover" to={`/browse?at=${sc.slug}`} aria-label={fmt('hub.enter', { name: sc.name })}>
+        {hasImage && url ? (
+          <img className="scene-cover-img" src={url} alt={sc.name} />
+        ) : (
+          <span className="icon-tile">
+            <Icon name={TYPE_ICON[sc.type]} />
+          </span>
+        )}
+        <span className="scrim" aria-hidden="true" />
+        <span className="title">
+          <b>{sc.name}</b>
+          <span className="nchip">{sc.parent}</span>
+        </span>
+      </Link>
+      <div className="scene-body">
+        <Link className="between scene-goto" to={`/browse?at=${sc.slug}`} aria-label={fmt('hub.enter', { name: sc.name })}>
+          <span className="t-xs t-muted">
+            {fmt('hub.sceneMeta', { kids: kids.length, items: countItemsIn(tree, items, sc.slug) })}
+          </span>
+          <Icon name="chev" size={15} style={V({ color: 'var(--faint)' })} />
+        </Link>
+        <div className="scene-subchips">
+          {kids.map((k) => (
+            <Link
+              key={k.id}
+              className="glass-chip chip-sub"
+              to={`/browse?at=${k.id}`}
+              aria-label={fmt('hub.enter', { name: k.name })}
+            >
+              <CDot color={TYPE_TINT[k.type]} />
+              {k.name}
+            </Link>
+          ))}
+        </div>
+      </div>
+    </article>
+  );
+}
+
 export default function Hub() {
   const navigate = useNavigate();
   const { t, fmt } = useTr();
-  const items = useCatalog((s) => s.items);
   const tree = useCatalog((s) => s.tree);
   const recent = useCatalog((s) => s.recent);
   const setReveal = useCatalog((s) => s.setReveal);
@@ -70,7 +117,6 @@ export default function Hub() {
   const scenes = useMemo(() => scenesFromTree(tree), [tree]);
 
   const QUICK = ['钥匙', 'HDMI 线', '护照', '剪刀'];
-  const sceneCnt = (sc: Scene) => countItemsIn(tree, items, sc.slug);
 
   return (
     <div className="tone-hub">
@@ -194,48 +240,9 @@ export default function Hub() {
                   </Link>
                 </div>
                 <div className="grid-scenes">
-                  {scenes.map((sc, i) => {
-                    const kids = sc.kids;
-                    return (
-                      <article
-                        key={sc.slug}
-                        className={`scene-card in d${(i % 3) + 2}`}
-                        style={V({ ['--tint-a']: sc.tintA, ['--tint-b']: sc.tintB })}
-                      >
-                        <Link className="scene-cover" to={`/browse?at=${sc.slug}`} aria-label={fmt('hub.enter', { name: sc.name })}>
-                          <span className="icon-tile">
-                            <Icon name={TYPE_ICON[sc.type]} />
-                          </span>
-                          <span className="scrim" aria-hidden="true" />
-                          <span className="title">
-                            <b>{sc.name}</b>
-                            <span className="nchip">{sc.parent}</span>
-                          </span>
-                        </Link>
-                        <div className="scene-body">
-                          <Link className="between scene-goto" to={`/browse?at=${sc.slug}`} aria-label={fmt('hub.enter', { name: sc.name })}>
-                            <span className="t-xs t-muted">
-                              {fmt('hub.sceneMeta', { kids: kids.length, items: sceneCnt(sc) })}
-                            </span>
-                            <Icon name="chev" size={15} style={V({ color: 'var(--faint)' })} />
-                          </Link>
-                          <div className="scene-subchips">
-                            {kids.map((k) => (
-                              <Link
-                                key={k.id}
-                                className="glass-chip chip-sub"
-                                to={`/browse?at=${k.id}`}
-                                aria-label={fmt('hub.enter', { name: k.name })}
-                              >
-                                <CDot color={TYPE_TINT[k.type]} />
-                                {k.name}
-                              </Link>
-                            ))}
-                          </div>
-                        </div>
-                      </article>
-                    );
-                  })}
+                  {scenes.map((sc, i) => (
+                    <SceneCard key={sc.slug} sc={sc} i={i} />
+                  ))}
                 </div>
               </section>
             </div>
