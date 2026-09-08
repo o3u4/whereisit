@@ -10,15 +10,26 @@ export function mapTypeTag(tag: string): DirType {
   return (KNOWN_TYPES.has(tag) ? tag : 'generic') as DirType;
 }
 
-/** safe parse of a space's layout_json; malformed/absent -> undefined (caller falls back) */
+/** neutral scene gradient fallback (used when a root has no layout tints) */
+export const DEFAULT_TINT_A = 'oklch(50% .05 205)';
+export const DEFAULT_TINT_B = 'oklch(80% .04 195)';
+
+/** safe parse of a space's layout_json; malformed/absent -> undefined. Missing
+ * tints fall back to the neutral scene gradient so a group-only layout still
+ * parses (a space tagged 家/公司 with no custom colors). */
 export function parseLayout(raw: string | null | undefined): SceneLayout | undefined {
   if (!raw) return undefined;
   try {
     const o: unknown = JSON.parse(raw);
     if (o && typeof o === 'object') {
       const { group, tintA, tintB } = o as Partial<SceneLayout>;
-      if (typeof tintA === 'string' && typeof tintB === 'string') {
-        return { group: typeof group === 'string' ? group : '', tintA, tintB };
+      const present = typeof group === 'string' || typeof tintA === 'string' || typeof tintB === 'string';
+      if (present) {
+        return {
+          group: typeof group === 'string' ? group : '',
+          tintA: typeof tintA === 'string' ? tintA : DEFAULT_TINT_A,
+          tintB: typeof tintB === 'string' ? tintB : DEFAULT_TINT_B,
+        };
       }
     }
   } catch {
@@ -106,8 +117,8 @@ export function scenesFromTree(nodes: DirNode[]): Scene[] {
     name: n.name,
     parent: n.layout?.group ?? '',
     type: n.type,
-    tintA: n.layout?.tintA ?? 'oklch(50% .05 205)',
-    tintB: n.layout?.tintB ?? 'oklch(80% .04 195)',
+    tintA: n.layout?.tintA ?? DEFAULT_TINT_A,
+    tintB: n.layout?.tintB ?? DEFAULT_TINT_B,
     kids: n.kids,
   }));
 }
