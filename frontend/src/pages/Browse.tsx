@@ -15,6 +15,7 @@ import { Icon, TYPE_ICON } from '../components/icons';
 import { Wordmark, Seg, Sheet, StatusBadge, ToastsHost } from '../components/ui';
 import { TabBar, TabLink } from '../components/TabBar';
 import { ItemSheet } from '../components/ItemSheet';
+import { NewPathSheet } from '../components/NewPathSheet';
 import { catMeta, TYPE_TINT } from '../lib/meta';
 import { chainOf, countItemsIn, dirById, directItemsIn, pathNames } from '../lib/tree';
 import type { DirNode, Item } from '../lib/types';
@@ -116,6 +117,12 @@ export default function Browse() {
   const [spaceImgNonce, setSpaceImgNonce] = useState(0);
   const [spaceImgAct, setSpaceImgAct] = useState(false);
   const spimgInput = useRef<HTMLInputElement>(null);
+  const [npsOpen, setNpsOpen] = useState(false);
+  const [npsBase, setNpsBase] = useState<string[]>([]);
+  const openCreate = (base: string[]) => {
+    setNpsBase(base);
+    setNpsOpen(true);
+  };
   const { url: spaceImg, hasImage: spaceHasImage } = useMedia('space', spaceId, !!spaceId, spaceImgNonce);
 
   const pickSpaceImg = async (e: ChangeEvent<HTMLInputElement>) => {
@@ -339,6 +346,17 @@ export default function Browse() {
             <span className="ellip">{n.name}</span>
             <span className="tr-cnt">{cnt ? cnt : '·'}</span>
           </button>
+          <button
+            type="button"
+            className="tr-add"
+            onClick={(e) => {
+              e.stopPropagation();
+              openCreate(pathNames(tree, n.id));
+            }}
+            aria-label={t('new.create')}
+          >
+            ＋
+          </button>
         </div>
         {n.kids.length && isOpen ? <div className="tr-kids">{n.kids.map(treeNode)}</div> : null}
       </div>
@@ -382,8 +400,22 @@ export default function Browse() {
 
   const rootGrid = (
     <>
-      {sectionHead(t('browse.topScenes'), fmt('browse.topScenesNote', { n: tree.length }))}
-      <div className="grid-scenes">
+      <div className="brw-section">
+        <span className="st">{t('browse.topScenes')}</span>
+        <span className="n">{fmt('browse.topScenesNote', { n: tree.length })}</span>
+        <button type="button" className="btn btn--soft btn--sm" style={{ marginLeft: 'auto' }} onClick={() => openCreate([])}>
+          ＋ {t('new.create')}
+        </button>
+      </div>
+      {tree.length === 0 ? (
+        <div className="glass-card brw-empty">
+          <Icon name="plus" />
+          <b>{t('new.emptyTitle')}</b>
+          <p>{t('new.emptyHint')}</p>
+          <button type="button" className="btn btn--primary btn--sm" onClick={() => openCreate([])}>{t('new.emptyCta')}</button>
+        </div>
+      ) : (
+        <div className="grid-scenes">
         {tree.map((sc) => {
           const tint = {
             a: sc.layout?.tintA ?? 'var(--accent)',
@@ -408,7 +440,8 @@ export default function Browse() {
             </Link>
           );
         })}
-      </div>
+        </div>
+      )}
     </>
   );
 
@@ -610,6 +643,23 @@ export default function Browse() {
               <span className="ft-top">
                 <span className="glyph">{dirIcon(k)}</span>
                 <span className="ft-count">{leafEmpty ? t('browse.empty') : fmt('browse.itemsCount', { n: cnt })}</span>
+                <span
+                  className="ft-add"
+                  role="button"
+                  tabIndex={0}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    openCreate(pathNames(tree, k.id));
+                  }}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') {
+                      e.stopPropagation();
+                      openCreate(pathNames(tree, k.id));
+                    }
+                  }}
+                >
+                  ＋
+                </span>
               </span>
               <span className="ft-name">{k.name}</span>
               {grand.length ? (
@@ -741,6 +791,15 @@ export default function Browse() {
         </TabBar>
       </div>
 
+      <NewPathSheet
+        open={npsOpen}
+        onClose={() => setNpsOpen(false)}
+        basePathNames={npsBase}
+        onCreated={(id) => {
+          setNpsOpen(false);
+          navigate(`/browse?at=${id}`);
+        }}
+      />
       <ItemSheet item={item} open={item !== null} onClose={() => setItemSlug(null)} />
 
       {spaceImgAct && spaceId != null ? (

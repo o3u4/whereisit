@@ -56,6 +56,10 @@ interface CatalogState {
   error: string | null;
 
   load: () => Promise<void>;
+  /** create one space under parentId (null = a root); resolves to the new space id */
+  addSpace: (parentId: number | null, name: string) => Promise<number | null>;
+  /** resolve/create a nested path (mkdir -p); resolves to the leaf space id */
+  ensurePath: (names: string[]) => Promise<number | null>;
   moveItem: (slug: string, toId: string) => Promise<void>;
   /** reparent a container subtree under another container (drag & drop on browse) */
   moveDir: (dirId: string, intoId: string) => Promise<void>;
@@ -161,6 +165,30 @@ export const useCatalog = create<CatalogState>((set, get) => {
           set({ tree: await api.fetchTree(), error: null });
         } catch (e) {
           set({ error: errText(e) });
+        }
+      }),
+
+    addSpace: (parentId, name) =>
+      enqueue(async () => {
+        try {
+          const sp = await api.createSpace({ name, parent_id: parentId });
+          set({ tree: await api.fetchTree(), error: null });
+          return sp.id;
+        } catch (e) {
+          set({ error: errText(e) });
+          return null;
+        }
+      }),
+
+    ensurePath: (names) =>
+      enqueue(async () => {
+        try {
+          const { id } = await api.ensurePath(names);
+          set({ tree: await api.fetchTree(), error: null });
+          return id;
+        } catch (e) {
+          set({ error: errText(e) });
+          return null;
         }
       }),
 

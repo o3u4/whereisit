@@ -13,6 +13,7 @@ import { Icon } from '../components/icons';
 import { Wordmark, Seg, Stepper, StatusBadge, ToastsHost } from '../components/ui';
 import { TabBar, TabLink } from '../components/TabBar';
 import { LocationPicker } from '../components/LocationPicker';
+import { NewPathSheet } from '../components/NewPathSheet';
 import { catMeta, KNOWN_CAT_LABELS } from '../lib/meta';
 import { pathNames } from '../lib/tree';
 import type { Item, ItemStatus, RecentEntry } from '../lib/types';
@@ -89,6 +90,7 @@ export default function Record() {
   const [mode, setMode] = useState<Mode>('A');
   const [slug, setSlug] = useState<string | null>(null);
   const [pickOpen, setPickOpen] = useState(false);
+  const [npsOpen, setNpsOpen] = useState(false);
   const [done, setDone] = useState(false);
   const [catExpanded, setCatExpanded] = useState(false);
   const [newCatName, setNewCatName] = useState('');
@@ -359,6 +361,9 @@ export default function Record() {
         <span className="btn btn--soft btn--sm" style={V({ pointerEvents: 'none', minHeight: '38px' })}>
           {t('rec.locSelect')}
         </span>
+      </button>
+      <button type="button" className="btn--text t-sm" style={{ marginTop: 6 }} onClick={() => setNpsOpen(true)}>
+        ＋ {t('new.create')}
       </button>
     </>
   );
@@ -766,6 +771,15 @@ export default function Record() {
         title={mode === 'A' ? t('rec.toWhereA') : t('rec.toWhereB')}
         value={spot}
         onCommit={setSpot}
+      />
+      <NewPathSheet
+        open={npsOpen}
+        onClose={() => setNpsOpen(false)}
+        basePathNames={[]}
+        onCreated={(id) => {
+          setNpsOpen(false);
+          setSpot(String(id));
+        }}
       />
 
       <ToastsHost />

@@ -9,6 +9,7 @@ import type { ChangeEvent, CSSProperties } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import * as api from '../api/client';
 import { useMedia } from '../hooks/useMedia';
+import { NewPathSheet } from '../components/NewPathSheet';
 import { Icon, CDot, TYPE_ICON, type IconName } from '../components/icons';
 import { Wordmark, Seg, Switch, Sheet, StatusBadge, Kbd, ToastsHost } from '../components/ui';
 import { TabBar, TabLink, TabAction } from '../components/TabBar';
@@ -101,6 +102,7 @@ export default function Hub() {
   const [existOpen, setExistOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [catOpen, setCatOpen] = useState(false);
+  const [npsOpen, setNpsOpen] = useState(false);
 
   /* Esc closes the modal sheets (spotlight + item detail close via global overlay) */
   useEffect(() => {
@@ -239,11 +241,22 @@ export default function Hub() {
                     {t('hub.scenes')} <Icon name="chev" size={13} style={V({ display: 'inline-block', verticalAlign: '-1px' })} />
                   </Link>
                 </div>
-                <div className="grid-scenes">
-                  {scenes.map((sc, i) => (
-                    <SceneCard key={sc.slug} sc={sc} i={i} />
-                  ))}
-                </div>
+                {scenes.length === 0 ? (
+                  <div className="glass-card brw-empty">
+                    <Icon name="plus" />
+                    <b>{t('new.emptyTitle')}</b>
+                    <p>{t('new.emptyHint')}</p>
+                    <button type="button" className="btn btn--primary btn--sm" onClick={() => setNpsOpen(true)}>
+                      {t('new.emptyCta')}
+                    </button>
+                  </div>
+                ) : (
+                  <div className="grid-scenes">
+                    {scenes.map((sc, i) => (
+                      <SceneCard key={sc.slug} sc={sc} i={i} />
+                    ))}
+                  </div>
+                )}
               </section>
             </div>
           </main>
@@ -268,6 +281,15 @@ export default function Hub() {
       />
       <CategorySheet open={catOpen} onClose={() => setCatOpen(false)} />
       <ExistSheet open={existOpen} onClose={() => setExistOpen(false)} onOpenItem={(slug) => useOverlay.getState().openItem(slug)} />
+      <NewPathSheet
+        open={npsOpen}
+        onClose={() => setNpsOpen(false)}
+        basePathNames={[]}
+        onCreated={(id) => {
+          setNpsOpen(false);
+          navigate(`/browse?at=${id}`);
+        }}
+      />
       <ToastsHost />
     </div>
   );

@@ -249,6 +249,33 @@ export async function moveSpace(spaceId: number, intoId: number): Promise<void> 
   await request('POST', `/spaces/${spaceId}/move`, { parent_id: intoId });
 }
 
+export interface SpaceOut {
+  id: number;
+  parent_id: number | null;
+  name: string;
+  type_tag: string;
+  ord: number;
+}
+
+export async function createSpace(p: {
+  name: string;
+  parent_id?: number | null;
+  type_tag?: string;
+  ord?: number;
+}): Promise<SpaceOut> {
+  return request<SpaceOut>('POST', '/spaces', {
+    name: p.name,
+    parent_id: p.parent_id ?? null,
+    type_tag: p.type_tag ?? 'generic',
+    ord: p.ord ?? 0,
+  });
+}
+
+/** resolve a nested path (root-first), creating missing segments (mkdir -p) */
+export async function ensurePath(names: string[]): Promise<{ id: number }> {
+  return request<{ id: number }>('POST', '/spaces/ensure-path', { names });
+}
+
 export interface PatchFields {
   qty?: number;
   status?: ItemStatus;

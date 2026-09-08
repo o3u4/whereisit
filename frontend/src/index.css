@@ -612,6 +612,11 @@ main { flex: 1; }
 }
 .folder-tile .glyph svg { width: 18px; height: 18px; }
 .folder-tile .ft-count { font-family: var(--font-mono); font-size: 11px; color: var(--faint); font-weight: 600; }
+.folder-tile .ft-add { color: var(--faint); font-size: 14px; line-height: 1; cursor: pointer; padding: 2px 4px; border-radius: 6px; }
+.folder-tile .ft-add:hover { color: var(--accent); background: color-mix(in oklch, var(--accent) 12%, transparent); }
+.brw-tree .tr-add { border: 0; background: transparent; color: var(--faint); font-size: 12px; line-height: 1; cursor: pointer; padding: 3px 5px; border-radius: 6px; opacity: 0; transition: opacity .12s; }
+.brw-tree .tr-row:hover .tr-add { opacity: 1; }
+.brw-tree .tr-add:hover { color: var(--accent); }
 .folder-tile .ft-name { font-size: 14.5px; font-weight: 650; letter-spacing: -0.005em; line-height: 1.25; overflow-wrap: anywhere; }
 .folder-tile .ft-sub { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
 .folder-tile.droppable { outline: 2px dashed color-mix(in oklch, var(--accent) 60%, transparent); outline-offset: -2px; }
