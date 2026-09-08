@@ -794,13 +794,28 @@ export default function Browse() {
                 <div className="panel-head">
                   <span className="section-kicker">{t('browse.tree')}</span>
                   <span className="t-xs t-muted t-mono">{t('browse.treeSub')}</span>
-                </div>
-                <div className="rowline gap6" style={{ padding: '2px 4px 6px' }}>
-                  <button type="button" className="btn btn--ghost btn--sm" onClick={() => setTreeExpanded(true)}>
-                    {t('browse.treeExpand')}
+                  <span className="grow" />
+                  <button
+                    type="button"
+                    className="rail-ic"
+                    data-tip={t('browse.treeExpand')}
+                    aria-label={t('browse.treeExpand')}
+                    onClick={() => setTreeExpanded(true)}
+                  >
+                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                      <path d="m8 6 5 5-5 5M13 6l5 5-5 5" />
+                    </svg>
                   </button>
-                  <button type="button" className="btn btn--ghost btn--sm" onClick={() => setTreeExpanded(false)}>
-                    {t('browse.treeCollapse')}
+                  <button
+                    type="button"
+                    className="rail-ic"
+                    data-tip={t('browse.treeCollapse')}
+                    aria-label={t('browse.treeCollapse')}
+                    onClick={() => setTreeExpanded(false)}
+                  >
+                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                      <path d="m8 18 5-5-5-5M13 18l5-5-5-5" />
+                    </svg>
                   </button>
                 </div>
                 <nav className="brw-tree">{tree.map(treeNode)}</nav>

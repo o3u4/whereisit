@@ -617,6 +617,21 @@ main { flex: 1; }
 .brw-tree .tr-add { border: 0; background: transparent; color: var(--faint); font-size: 12px; line-height: 1; cursor: pointer; padding: 3px 5px; border-radius: 6px; opacity: 0; transition: opacity .12s; }
 .brw-tree .tr-row:hover .tr-add { opacity: 1; }
 .brw-tree .tr-add:hover { color: var(--accent); }
+
+/* small rail icon buttons (expand/collapse all) that blend into the panel and
+   reveal a tooltip only after the pointer has rested ~0.7s */
+.rail-ic { position: relative; width: 22px; height: 22px; display: inline-flex; align-items: center; justify-content: center; color: var(--faint); background: transparent; border: 0; border-radius: 7px; cursor: pointer; transition: background .15s, color .15s; }
+.rail-ic:hover { color: var(--muted); background: rgb(0 0 0 / 0.05); }
+.rail-ic:active { background: rgb(0 0 0 / 0.09); }
+.rail-ic::after {
+  content: attr(data-tip);
+  position: absolute; left: 50%; top: calc(100% + 7px); transform: translateX(-50%);
+  padding: 4px 8px; border-radius: 7px; white-space: nowrap;
+  font: 11px/1.3 var(--font-sans); color: #fff; background: rgb(28 28 30 / 0.92);
+  box-shadow: 0 4px 14px rgb(0 0 0 / 0.16); pointer-events: none; z-index: 40;
+  opacity: 0; transition: opacity .15s; transition-delay: 0s;
+}
+.rail-ic:hover::after { opacity: 1; transition-delay: .7s; }
 .folder-tile .ft-name { font-size: 14.5px; font-weight: 650; letter-spacing: -0.005em; line-height: 1.25; overflow-wrap: anywhere; }
 .folder-tile .ft-sub { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
 .folder-tile.droppable { outline: 2px dashed color-mix(in oklch, var(--accent) 60%, transparent); outline-offset: -2px; }
