@@ -777,7 +777,7 @@ main { flex: 1; }
   color: var(--faint);
 }
 .item-img-now { position: relative; width: 100%; height: 100%; display: block; }
-.item-img-now img { display: block; width: 100%; height: 100%; object-fit: cover; }
+.item-img-now img { display: block; width: 100%; height: 100%; object-fit: contain; }
 .item-img-actions {
   position: absolute; left: 10px; bottom: 10px;
 }
