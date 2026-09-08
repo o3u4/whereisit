@@ -286,6 +286,14 @@ export async function deleteSpace(spaceId: number): Promise<{ removed_ids: numbe
   return data;
 }
 
+/** patch a space's declarative layout_json (e.g. { group: "家/公司", ... }) */
+export async function updateSpaceLayout(
+  spaceId: number,
+  layout: Record<string, unknown>,
+): Promise<SpaceOut> {
+  return request<SpaceOut>('PATCH', `/spaces/${spaceId}`, { layout_json: JSON.stringify(layout) });
+}
+
 export interface PatchFields {
   qty?: number;
   status?: ItemStatus;

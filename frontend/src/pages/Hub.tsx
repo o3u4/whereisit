@@ -52,7 +52,7 @@ function SceneCard({ sc, i }: { sc: Scene; i: number }) {
         <span className="scrim" aria-hidden="true" />
         <span className="title">
           <b>{sc.name}</b>
-          <span className="nchip">{sc.parent}</span>
+          {sc.parent ? <span className="nchip">{sc.parent}</span> : null}
         </span>
       </Link>
       <div className="scene-body">

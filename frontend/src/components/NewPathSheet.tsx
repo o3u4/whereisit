@@ -8,6 +8,7 @@ import type { ChangeEvent } from 'react';
 import * as api from '../api/client';
 import { Sheet, Seg } from './ui';
 import { Icon, TYPE_ICON } from './icons';
+import { dirById } from '../lib/tree';
 import { useCatalog } from '../stores/catalog';
 import { useTr } from '../i18n';
 
@@ -49,6 +50,7 @@ export function NewPathSheet({
   const [thumb, setThumb] = useState<string | null>(null);
   const [thumbFile, setThumbFile] = useState<File | null>(null);
   const [stype, setStype] = useState<string>('generic');
+  const [group, setGroup] = useState('');
   const [busy, setBusy] = useState(false);
   const thumbInput = useRef<HTMLInputElement>(null);
 
@@ -64,6 +66,7 @@ export function NewPathSheet({
       setThumb(null);
       setThumbFile(null);
       setStype('generic');
+      setGroup('');
       setBusy(false);
     }
   }, [open]);
@@ -116,6 +119,13 @@ export function NewPathSheet({
       const st = useCatalog.getState();
       const id = await st.ensurePath([...basePathNames, nm], stype === 'generic' ? undefined : stype);
       if (id == null) return;
+      // 归属标签 (家/公司) lives on layout_json.group of the top-level scene
+      if (basePathNames.length === 0 && group.trim()) {
+        const node = dirById(useCatalog.getState().tree, String(id));
+        const prev = (node?.layout as { group?: string } | undefined) ?? {};
+        await api.updateSpaceLayout(id, { ...prev, group: group.trim() });
+        await useCatalog.getState().load();
+      }
       for (const c of childNames) {
         const cname = c.trim();
         if (cname) await st.addSpace(id, cname);
@@ -169,6 +179,13 @@ export function NewPathSheet({
             <span className="field-label">{t('new.name')}</span>
             <input className="field" value={name} placeholder={t('new.namePh')} onChange={(e) => setName(e.target.value)} autoFocus />
           </div>
+
+          {basePathNames.length === 0 ? (
+            <div>
+              <span className="field-label">{t('new.group')}</span>
+              <input className="field" value={group} placeholder={t('new.groupPh')} onChange={(e) => setGroup(e.target.value)} />
+            </div>
+          ) : null}
 
           <div>
             <span className="field-label">{t('new.type')}</span>
