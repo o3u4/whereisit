@@ -28,6 +28,7 @@ def update_settings(payload: SettingsUpdate, user_id: int = Depends(get_current_
                 lang=payload.lang,
                 token_enabled=payload.token_enabled,
                 registration=payload.registration,
+                theme=payload.theme,
             )
         )
 

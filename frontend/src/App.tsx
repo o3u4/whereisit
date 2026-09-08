@@ -9,6 +9,7 @@ import { useAuth } from './stores/auth'
 import { useTr } from './i18n'
 import * as api from './api/client'
 import { SearchOverlay } from './components/SearchOverlay'
+import './stores/theme' // applies the persisted data-theme before first paint
 
 function downloadText(filename: string, text: string) {
   const url = URL.createObjectURL(new Blob([text], { type: 'text/plain' }))

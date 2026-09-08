@@ -60,6 +60,7 @@ export interface SettingsDTO {
   username: string | null;
   is_admin: boolean;
   registration: 'auto' | 'manual';
+  theme: 'apple' | 'flat';
 }
 
 export async function fetchSettings(): Promise<SettingsDTO> {
@@ -70,6 +71,7 @@ export async function saveSettings(patch: {
   lang?: 'zh' | 'en';
   token_enabled?: boolean;
   registration?: 'auto' | 'manual';
+  theme?: 'apple' | 'flat';
 }): Promise<SettingsDTO> {
   return request<SettingsDTO>('PUT', '/settings', patch);
 }

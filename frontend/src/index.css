@@ -1231,3 +1231,25 @@ main { flex: 1; }
 @media (max-width: 1023px) { .rec-form .seg button { min-height: 44px; } }
 
 .rec-hr { height: 1px; background: var(--border); }
+
+/* ============================ flat · low-power theme =========================
+   Same features, same palette — but no backdrop-filter/blur, no wallpaper
+   blobs, and solid surfaces instead of translucent glass. Much lighter for weak
+   clients. Activated via <html data-theme="flat">. */
+[data-theme='flat'] .wall { background: var(--bg); }
+[data-theme='flat'] .blob { display: none; }
+[data-theme='flat'] * { backdrop-filter: none !important; -webkit-backdrop-filter: none !important; }
+[data-theme='flat'] .glass-card,
+[data-theme='flat'] .glass-panel,
+[data-theme='flat'] .glass,
+[data-theme='flat'] .topglass,
+[data-theme='flat'] .panel,
+[data-theme='flat'] .spot,
+[data-theme='flat'] .glass-chip,
+[data-theme='flat'] .item-row,
+[data-theme='flat'] .sheet,
+[data-theme='flat'] .scene-card {
+  background: var(--surface);
+  box-shadow: none;
+  border-color: var(--border);
+}

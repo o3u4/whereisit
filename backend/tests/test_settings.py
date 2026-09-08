@@ -28,7 +28,16 @@ def test_settings_defaults(client):
     d = r.json()["data"]
     assert d["lang"] == "zh"
     assert d["token_enabled"] is False
+    assert d["registration"] == "manual"
+    assert d["theme"] == "apple"
     assert d["lan_url"]  # "host:port"
+
+
+def test_theme_roundtrip(client):
+    r = client.put("/api/settings", json={"theme": "flat"})
+    assert r.status_code == 200
+    assert r.json()["data"]["theme"] == "flat"
+    assert client.put("/api/settings", json={"theme": "bogus"}).status_code == 400
 
 
 def test_set_lang_roundtrip(client):

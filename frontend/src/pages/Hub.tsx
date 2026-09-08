@@ -19,6 +19,7 @@ import type { DirNode, Item, RecentEntry, Scene } from '../lib/types';
 import { useCatalog } from '../stores/catalog';
 import { useAuth } from '../stores/auth';
 import { useOverlay } from '../stores/overlay';
+import { useTheme } from '../stores/theme';
 import { useToast } from '../stores/toast';
 import { useTr } from '../i18n';
 
@@ -335,6 +336,15 @@ function SettingsSheet({
     }
   };
 
+  const setThemePref = async (th: 'apple' | 'flat') => {
+    useTheme.getState().setTheme(th); // apply + persist locally immediately
+    try {
+      setS(await api.saveSettings({ theme: th }));
+    } catch {
+      /* local theme still applies */
+    }
+  };
+
   const copyLan = async () => {
     if (!s) return;
     try {
@@ -508,6 +518,17 @@ function SettingsSheet({
           options={[
             { value: 'zh', label: '简体中文' },
             { value: 'en', label: 'English' },
+          ]}
+        />
+      </div>
+      <div>
+        <span className="field-label">{t('set.theme')}</span>
+        <Seg
+          value={s?.theme ?? 'apple'}
+          onChange={(v) => void setThemePref(v as 'apple' | 'flat')}
+          options={[
+            { value: 'apple', label: t('set.themeApple') },
+            { value: 'flat', label: t('set.themeFlat') },
           ]}
         />
       </div>

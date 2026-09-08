@@ -43,6 +43,10 @@ def registration(conn: sqlite3.Connection) -> str:
     return _get(conn, "registration", "manual")
 
 
+def theme(conn: sqlite3.Connection) -> str:
+    return _get(conn, "theme", "apple")
+
+
 def get(conn: sqlite3.Connection, user_id: int) -> dict:
     u = _user(conn, user_id) or {"username": None, "is_admin": 0}
     return {
@@ -52,14 +56,19 @@ def get(conn: sqlite3.Connection, user_id: int) -> dict:
         "username": u["username"],
         "is_admin": bool(u["is_admin"]),
         "registration": registration(conn),
+        "theme": theme(conn),
     }
 
 
-def put(conn: sqlite3.Connection, user_id: int, *, lang: Optional[str] = None, token_enabled: Optional[bool] = None, registration: Optional[str] = None) -> dict:
+def put(conn: sqlite3.Connection, user_id: int, *, lang: Optional[str] = None, token_enabled: Optional[bool] = None, registration: Optional[str] = None, theme: Optional[str] = None) -> dict:
     if lang is not None:
         if lang not in ("zh", "en"):
             raise BadRequest("lang must be 'zh' or 'en'")
         _put(conn, "lang", lang)
+    if theme is not None:
+        if theme not in ("apple", "flat"):
+            raise BadRequest("theme must be 'apple' or 'flat'")
+        _put(conn, "theme", theme)
     if token_enabled is not None:
         if token_enabled:
             if not has_token(conn, user_id):

@@ -10,3 +10,4 @@ class SettingsUpdate(BaseModel):
     lang: Optional[str] = None
     token_enabled: Optional[bool] = None
     registration: Optional[str] = None  # 'auto' (self-signup) | 'manual' (admin-issued)
+    theme: Optional[str] = None  # 'apple' | 'flat'

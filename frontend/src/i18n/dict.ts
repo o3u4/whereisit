@@ -314,6 +314,9 @@ export const dict: Record<Lang, Record<string, string>> = {
 
     'set.title': '设置',
     'set.lang': '语言',
+    'set.theme': '主题',
+    'set.themeApple': '玻璃质感',
+    'set.themeFlat': '扁平低耗',
     'set.lan': '局域网访问',
     'set.copy': '复制',
     'set.copied': '已复制局域网地址',
@@ -673,6 +676,9 @@ export const dict: Record<Lang, Record<string, string>> = {
 
     'set.title': 'Settings',
     'set.lang': 'Language',
+    'set.theme': 'Theme',
+    'set.themeApple': 'Glass',
+    'set.themeFlat': 'Flat · low-power',
     'set.lan': 'LAN access',
     'set.copy': 'Copy',
     'set.copied': 'LAN address copied',
