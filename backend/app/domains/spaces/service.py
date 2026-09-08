@@ -210,13 +210,14 @@ def tree(conn: sqlite3.Connection, user_id: int, root_id: Optional[int]) -> list
 def ensure_path(conn: sqlite3.Connection, user_id: int, names: list, type_tag: Optional[str] = None) -> int:
     """Resolve a nested path (root-first) to its leaf space id, creating any
     missing segments (mkdir -p), all within this owner. Returns the leaf id.
-    `type_tag` is applied to the leaf node only when it is created."""
+    When `type_tag` is given it is applied to the leaf node — whether it was just
+    created or already existed (so re-adding a space with a different type updates
+    it rather than silently keeping the old one)."""
     if not names:
         raise BadRequest("path must not be empty")
-    total = len(names)
     parent: Optional[int] = None
     leaf: Optional[int] = None
-    for idx, name in enumerate(names):
+    for name in names:
         name = (name or "").strip()
         n = norm_text(name)
         if not n:
@@ -234,17 +235,21 @@ def ensure_path(conn: sqlite3.Connection, user_id: int, names: list, type_tag: O
         if row is not None:
             node_id = int(row["id"])
         else:
-            tag = (type_tag if idx == total - 1 else None) or "generic"
             cur = conn.execute(
                 "INSERT INTO spaces (parent_id, name, name_norm, ord, type_tag, owner_id) "
-                "VALUES (?, ?, ?, 0, ?, ?)",
-                (parent, name, n, tag, user_id),
+                "VALUES (?, ?, ?, 0, 'generic', ?)",
+                (parent, name, n, user_id),
             )
             node_id = int(cur.lastrowid)
         parent = node_id
         leaf = node_id
     if leaf is None:
         raise BadRequest("path must not be empty")
+    if type_tag:
+        conn.execute(
+            "UPDATE spaces SET type_tag = ?, updated_at = datetime('now') WHERE id = ? AND owner_id = ?",
+            (type_tag, leaf, user_id),
+        )
     return leaf
 
 

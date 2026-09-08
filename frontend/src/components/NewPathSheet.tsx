@@ -127,10 +127,12 @@ export function NewPathSheet({
         await useCatalog.getState().load();
       }
       // children are created with find-or-create semantics (mkdir -p) so adding
-      // to an existing scene never duplicates a child that's already there
+      // to an existing scene never duplicates a child that's already there; the
+      // chosen type also updates an existing child when it differs
+      const typeArg = stype === 'generic' ? undefined : stype;
       for (const c of childNames) {
         const cname = c.trim();
-        if (cname) await st.ensurePath([...basePathNames, nm, cname]);
+        if (cname) await st.ensurePath([...basePathNames, nm, cname], typeArg);
       }
       for (const it of items) {
         const iname = it.name.trim();

@@ -80,6 +80,16 @@ def test_ensure_path_empty_rejected(client):
     assert client.post("/api/spaces/ensure-path", json={"names": ["a", " ", "b"]}).status_code == 400
 
 
+def test_ensure_path_updates_type_on_reuse(client):
+    a = _ensure(client, ["客厅"])
+    r = client.get("/api/spaces/tree").json()["data"]
+    assert r[0]["type_tag"] == "generic"
+    # re-add the same space choosing a different type → it updates
+    b = client.post("/api/spaces/ensure-path", json={"names": ["客厅"], "type_tag": "room"}).json()["data"]["id"]
+    assert a == b
+    assert client.get("/api/spaces/tree").json()["data"][0]["type_tag"] == "room"
+
+
 def test_ensure_path_isolated_per_user(client):
     _ensure(client, ["客厅"])
 
