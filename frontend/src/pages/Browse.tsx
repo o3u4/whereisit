@@ -117,6 +117,12 @@ export default function Browse() {
   const [spaceImgNonce, setSpaceImgNonce] = useState(0);
   const [spaceImgAct, setSpaceImgAct] = useState(false);
   const spimgInput = useRef<HTMLInputElement>(null);
+  const [treeOpen, setTreeOpen] = useState(false);
+  const toggleTreeAll = () => {
+    const next = !treeOpen;
+    setTreeOpen(next);
+    setTreeExpanded(next);
+  };
   const [npsOpen, setNpsOpen] = useState(false);
   const [npsBase, setNpsBase] = useState<string[]>([]);
   const openCreate = (base: string[]) => {
@@ -798,24 +804,21 @@ export default function Browse() {
                   <button
                     type="button"
                     className="rail-ic"
-                    data-tip={t('browse.treeExpand')}
-                    aria-label={t('browse.treeExpand')}
-                    onClick={() => setTreeExpanded(true)}
+                    data-tip={treeOpen ? t('browse.treeCollapse') : t('browse.treeExpand')}
+                    aria-label={treeOpen ? t('browse.treeCollapse') : t('browse.treeExpand')}
+                    onClick={toggleTreeAll}
                   >
-                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
-                      <path d="m8 6 5 5-5 5M13 6l5 5-5 5" />
-                    </svg>
-                  </button>
-                  <button
-                    type="button"
-                    className="rail-ic"
-                    data-tip={t('browse.treeCollapse')}
-                    aria-label={t('browse.treeCollapse')}
-                    onClick={() => setTreeExpanded(false)}
-                  >
-                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
-                      <path d="m8 18 5-5-5-5M13 18l5-5-5-5" />
-                    </svg>
+                    {treeOpen ? (
+                      // heads together → collapse all
+                      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                        <path d="M9 6l3 4 3-4M9 18l3-4 3 4" />
+                      </svg>
+                    ) : (
+                      // tails together → expand all
+                      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                        <path d="M9 8l3-4 3 4M9 16l3 4 3-4" />
+                      </svg>
+                    )}
                   </button>
                 </div>
                 <nav className="brw-tree">{tree.map(treeNode)}</nav>
