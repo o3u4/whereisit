@@ -7,11 +7,12 @@ export type ItemStatus = 'present' | 'lent' | 'consumed';
 /** container type; unknown space type_tags map to 'generic' */
 export type DirType = 'room' | 'wardrobe' | 'desk' | 'drawer' | 'shelf' | 'box' | 'generic';
 
-/** display metadata stored per root scene in spaces.layout_json (JSON string) */
+/** display metadata stored per root scene in spaces.layout_json (JSON string).
+ * tintA/tintB are optional — when absent the card gets an auto gradient. */
 export interface SceneLayout {
   group: string;
-  tintA: string;
-  tintB: string;
+  tintA?: string;
+  tintB?: string;
 }
 
 export interface DirNode {

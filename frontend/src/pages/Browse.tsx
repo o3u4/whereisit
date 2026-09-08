@@ -17,7 +17,7 @@ import { TabBar, TabLink } from '../components/TabBar';
 import { ItemSheet } from '../components/ItemSheet';
 import { NewPathSheet } from '../components/NewPathSheet';
 import { catMeta, TYPE_TINT } from '../lib/meta';
-import { chainOf, countItemsIn, dirById, directItemsIn, pathNames } from '../lib/tree';
+import { chainOf, countItemsIn, dirById, directItemsIn, pathNames, sceneTint } from '../lib/tree';
 import type { DirNode, Item } from '../lib/types';
 import * as api from '../api/client';
 import { useMedia } from '../hooks/useMedia';
@@ -450,10 +450,11 @@ export default function Browse() {
         </div>
       ) : (
         <div className="grid-scenes">
-        {tree.map((sc) => {
+        {tree.map((sc, i) => {
+          const auto = sceneTint(i);
           const tint = {
-            a: sc.layout?.tintA ?? 'var(--accent)',
-            b: sc.layout?.tintB ?? 'var(--accent-deep)',
+            a: sc.layout?.tintA ?? auto.a,
+            b: sc.layout?.tintB ?? auto.b,
           };
           const cnt = countItemsIn(tree, items, sc.id);
           return (

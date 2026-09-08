@@ -10,26 +10,36 @@ export function mapTypeTag(tag: string): DirType {
   return (KNOWN_TYPES.has(tag) ? tag : 'generic') as DirType;
 }
 
-/** neutral scene gradient fallback (used when a root has no layout tints) */
-export const DEFAULT_TINT_A = 'oklch(50% .05 205)';
-export const DEFAULT_TINT_B = 'oklch(80% .04 195)';
+/** scene-gradient palette, cycled by index when a root has no custom tints, so
+ * freshly-created top-level scenes each get a distinct card color. */
+export const SCENE_GRADIENTS: { a: string; b: string }[] = [
+  { a: 'oklch(82% .07 100)', b: 'oklch(52% .11 45)' }, // amber
+  { a: 'oklch(84% .06 210)', b: 'oklch(54% .09 205)' }, // teal
+  { a: 'oklch(83% .05 260)', b: 'oklch(52% .10 250)' }, // indigo
+  { a: 'oklch(82% .06 150)', b: 'oklch(50% .09 158)' }, // green
+  { a: 'oklch(82% .06 320)', b: 'oklch(52% .09 320)' }, // pink
+  { a: 'oklch(83% .05 60)', b: 'oklch(55% .09 78)' }, // lime/olive
+];
 
-/** safe parse of a space's layout_json; malformed/absent -> undefined. Missing
- * tints fall back to the neutral scene gradient so a group-only layout still
- * parses (a space tagged 家/公司 with no custom colors). */
+/** deterministic gradient for the i-th root scene (cycles the palette) */
+export function sceneTint(i: number): { a: string; b: string } {
+  return SCENE_GRADIENTS[i % SCENE_GRADIENTS.length];
+}
+
+/** safe parse of a space's layout_json; malformed/absent -> undefined. Tints are
+ * optional and only returned when actually present (a group-only layout parses
+ * fine and the card picks an auto gradient). */
 export function parseLayout(raw: string | null | undefined): SceneLayout | undefined {
   if (!raw) return undefined;
   try {
     const o: unknown = JSON.parse(raw);
     if (o && typeof o === 'object') {
       const { group, tintA, tintB } = o as Partial<SceneLayout>;
-      const present = typeof group === 'string' || typeof tintA === 'string' || typeof tintB === 'string';
-      if (present) {
-        return {
-          group: typeof group === 'string' ? group : '',
-          tintA: typeof tintA === 'string' ? tintA : DEFAULT_TINT_A,
-          tintB: typeof tintB === 'string' ? tintB : DEFAULT_TINT_B,
-        };
+      if (typeof group === 'string' || typeof tintA === 'string' || typeof tintB === 'string') {
+        const out: SceneLayout = { group: typeof group === 'string' ? group : '' };
+        if (typeof tintA === 'string') out.tintA = tintA;
+        if (typeof tintB === 'string') out.tintB = tintB;
+        return out;
       }
     }
   } catch {
@@ -110,15 +120,19 @@ export function directItemsIn(items: Item[], id: string): Item[] {
   return items.filter((it) => it.spot === id);
 }
 
-/** root containers as hub scene cards (tints from layout_json with a neutral fallback) */
+/** root containers as hub scene cards (custom tints win; otherwise a distinct
+ * auto gradient per card so new scenes aren't all one color) */
 export function scenesFromTree(nodes: DirNode[]): Scene[] {
-  return nodes.map((n) => ({
-    slug: n.id,
-    name: n.name,
-    parent: n.layout?.group ?? '',
-    type: n.type,
-    tintA: n.layout?.tintA ?? DEFAULT_TINT_A,
-    tintB: n.layout?.tintB ?? DEFAULT_TINT_B,
-    kids: n.kids,
-  }));
+  return nodes.map((n, i) => {
+    const tint = sceneTint(i);
+    return {
+      slug: n.id,
+      name: n.name,
+      parent: n.layout?.group ?? '',
+      type: n.type,
+      tintA: n.layout?.tintA ?? tint.a,
+      tintB: n.layout?.tintB ?? tint.b,
+      kids: n.kids,
+    };
+  });
 }
