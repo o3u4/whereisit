@@ -207,6 +207,44 @@ def tree(conn: sqlite3.Connection, user_id: int, root_id: Optional[int]) -> list
     return _build_forest(rows, [root_id])
 
 
+def ensure_path(conn: sqlite3.Connection, user_id: int, names: list) -> int:
+    """Resolve a nested path (root-first) to its leaf space id, creating any
+    missing segments (mkdir -p), all within this owner. Returns the leaf id."""
+    if not names:
+        raise BadRequest("path must not be empty")
+    parent: Optional[int] = None
+    leaf: Optional[int] = None
+    for name in names:
+        name = (name or "").strip()
+        n = norm_text(name)
+        if not n:
+            raise BadRequest("path contains an empty segment")
+        if parent is None:
+            row = conn.execute(
+                "SELECT id FROM spaces WHERE parent_id IS NULL AND name_norm = ? AND owner_id = ?",
+                (n, user_id),
+            ).fetchone()
+        else:
+            row = conn.execute(
+                "SELECT id FROM spaces WHERE parent_id = ? AND name_norm = ? AND owner_id = ?",
+                (parent, n, user_id),
+            ).fetchone()
+        if row is not None:
+            node_id = int(row["id"])
+        else:
+            cur = conn.execute(
+                "INSERT INTO spaces (parent_id, name, name_norm, ord, type_tag, owner_id) "
+                "VALUES (?, ?, ?, 0, 'generic', ?)",
+                (parent, name, n, user_id),
+            )
+            node_id = int(cur.lastrowid)
+        parent = node_id
+        leaf = node_id
+    if leaf is None:
+        raise BadRequest("path must not be empty")
+    return leaf
+
+
 def path(conn: sqlite3.Connection, user_id: int, space_id: int) -> list[dict]:
     """Root -> space chain of {id, name} dicts."""
     require(conn, user_id, space_id)

@@ -24,6 +24,11 @@ class SpaceMove(BaseModel):
     index: Optional[int] = Field(default=None, ge=0)
 
 
+class PathIn(BaseModel):
+    """Segments of a nested path (mkdir -p semantics, from the root)."""
+    names: list[str] = Field(min_length=1)
+
+
 class SpaceOut(BaseModel):
     id: int
     parent_id: Optional[int]

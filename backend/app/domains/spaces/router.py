@@ -8,7 +8,7 @@ from app.core.api import ok
 from app.core.auth import get_current_user
 from app.db.engine import read, tx
 from app.domains.spaces import service
-from app.domains.spaces.schemas import SpaceCreate, SpaceMove, SpaceOut, SpaceUpdate
+from app.domains.spaces.schemas import PathIn, SpaceCreate, SpaceMove, SpaceOut, SpaceUpdate
 
 router = APIRouter(prefix="/api/spaces", tags=["spaces"])
 
@@ -25,6 +25,13 @@ def read_tree(
 def read_path(space_id: int, user_id: int = Depends(get_current_user)) -> dict:
     with read() as conn:
         return ok(service.path(conn, user_id, space_id))
+
+
+@router.post("/ensure-path", response_model=dict, status_code=201)
+def ensure_path(payload: PathIn, user_id: int = Depends(get_current_user)) -> dict:
+    with tx() as conn:
+        space_id = service.ensure_path(conn, user_id, payload.names)
+    return ok({"id": space_id, "path": payload.names})
 
 
 @router.post("", response_model=dict, status_code=201)
