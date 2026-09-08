@@ -765,6 +765,7 @@ main { flex: 1; }
   position: relative;
   border-radius: 18px;
   aspect-ratio: 16 / 9;
+  flex-shrink: 0; /* never let a tall name / many attributes compress the preview */
   overflow: hidden;
   border: 1px solid rgb(255 255 255 / 0.72);
   background:
