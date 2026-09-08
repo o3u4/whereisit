@@ -126,9 +126,11 @@ export function NewPathSheet({
         await api.updateSpaceLayout(id, { ...prev, group: group.trim() });
         await useCatalog.getState().load();
       }
+      // children are created with find-or-create semantics (mkdir -p) so adding
+      // to an existing scene never duplicates a child that's already there
       for (const c of childNames) {
         const cname = c.trim();
-        if (cname) await st.addSpace(id, cname);
+        if (cname) await st.ensurePath([...basePathNames, nm, cname]);
       }
       for (const it of items) {
         const iname = it.name.trim();
