@@ -194,10 +194,10 @@ svg { display: block; }
 .scene-card:active { transform: translateY(-1px) scale(0.99); }
 
 @supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
-  .glass, .glass-panel, .glass-card, .glass-chip, .scene-card { background: var(--surface); }
+  .glass, .glass-panel, .glass-card, .glass-chip { background: var(--surface); }
 }
 @media (prefers-reduced-transparency: reduce) {
-  .glass, .glass-panel, .glass-card, .glass-chip, .scene-card {
+  .glass, .glass-panel, .glass-card, .glass-chip {
     background: var(--surface);
     backdrop-filter: none; -webkit-backdrop-filter: none;
   }
@@ -1248,8 +1248,7 @@ main { flex: 1; }
 [data-theme='flat'] .spot,
 [data-theme='flat'] .glass-chip,
 [data-theme='flat'] .item-row,
-[data-theme='flat'] .sheet,
-[data-theme='flat'] .scene-card {
+[data-theme='flat'] .sheet {
   background: var(--surface);
   box-shadow: none;
   border-color: var(--border);
