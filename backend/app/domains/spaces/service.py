@@ -207,14 +207,16 @@ def tree(conn: sqlite3.Connection, user_id: int, root_id: Optional[int]) -> list
     return _build_forest(rows, [root_id])
 
 
-def ensure_path(conn: sqlite3.Connection, user_id: int, names: list) -> int:
+def ensure_path(conn: sqlite3.Connection, user_id: int, names: list, type_tag: Optional[str] = None) -> int:
     """Resolve a nested path (root-first) to its leaf space id, creating any
-    missing segments (mkdir -p), all within this owner. Returns the leaf id."""
+    missing segments (mkdir -p), all within this owner. Returns the leaf id.
+    `type_tag` is applied to the leaf node only when it is created."""
     if not names:
         raise BadRequest("path must not be empty")
+    total = len(names)
     parent: Optional[int] = None
     leaf: Optional[int] = None
-    for name in names:
+    for idx, name in enumerate(names):
         name = (name or "").strip()
         n = norm_text(name)
         if not n:
@@ -232,10 +234,11 @@ def ensure_path(conn: sqlite3.Connection, user_id: int, names: list) -> int:
         if row is not None:
             node_id = int(row["id"])
         else:
+            tag = (type_tag if idx == total - 1 else None) or "generic"
             cur = conn.execute(
                 "INSERT INTO spaces (parent_id, name, name_norm, ord, type_tag, owner_id) "
-                "VALUES (?, ?, ?, 0, 'generic', ?)",
-                (parent, name, n, user_id),
+                "VALUES (?, ?, ?, 0, ?, ?)",
+                (parent, name, n, tag, user_id),
             )
             node_id = int(cur.lastrowid)
         parent = node_id

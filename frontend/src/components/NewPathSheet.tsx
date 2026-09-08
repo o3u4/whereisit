@@ -7,12 +7,23 @@ import { useEffect, useRef, useState } from 'react';
 import type { ChangeEvent } from 'react';
 import * as api from '../api/client';
 import { Sheet, Seg } from './ui';
+import { Icon, TYPE_ICON } from './icons';
 import { useCatalog } from '../stores/catalog';
 import { useTr } from '../i18n';
 
 type Mode = 'detail' | 'quick';
 type ItemRow = { name: string; cat: string };
 const SEP = /[/\\｜|,，]/;
+const TYPES = ['room', 'wardrobe', 'desk', 'drawer', 'shelf', 'box', 'generic'] as const;
+const TLABEL: Record<(typeof TYPES)[number], string> = {
+  room: 'new.tRoom',
+  wardrobe: 'new.tWardrobe',
+  desk: 'new.tDesk',
+  drawer: 'new.tDrawer',
+  shelf: 'new.tShelf',
+  box: 'new.tBox',
+  generic: 'new.tOther',
+};
 
 export function NewPathSheet({
   open,
@@ -37,6 +48,7 @@ export function NewPathSheet({
   const [itemCat, setItemCat] = useState('');
   const [thumb, setThumb] = useState<string | null>(null);
   const [thumbFile, setThumbFile] = useState<File | null>(null);
+  const [stype, setStype] = useState<string>('generic');
   const [busy, setBusy] = useState(false);
   const thumbInput = useRef<HTMLInputElement>(null);
 
@@ -51,6 +63,7 @@ export function NewPathSheet({
       setItemCat('');
       setThumb(null);
       setThumbFile(null);
+      setStype('generic');
       setBusy(false);
     }
   }, [open]);
@@ -101,7 +114,7 @@ export function NewPathSheet({
     setBusy(true);
     try {
       const st = useCatalog.getState();
-      const id = await st.ensurePath([...basePathNames, nm]);
+      const id = await st.ensurePath([...basePathNames, nm], stype === 'generic' ? undefined : stype);
       if (id == null) return;
       for (const c of childNames) {
         const cname = c.trim();
@@ -155,6 +168,27 @@ export function NewPathSheet({
           <div>
             <span className="field-label">{t('new.name')}</span>
             <input className="field" value={name} placeholder={t('new.namePh')} onChange={(e) => setName(e.target.value)} autoFocus />
+          </div>
+
+          <div>
+            <span className="field-label">{t('new.type')}</span>
+            <div className="wrap-t gap6">
+              {TYPES.map((tp) => {
+                const on = stype === tp;
+                return (
+                  <button
+                    key={tp}
+                    type="button"
+                    className="chip chip--glass"
+                    onClick={() => setStype(tp)}
+                    style={on ? { borderColor: 'var(--accent)', color: 'var(--accent)' } : undefined}
+                  >
+                    <Icon name={TYPE_ICON[tp]} size={13} />
+                    {t(TLABEL[tp])}
+                  </button>
+                );
+              })}
+            </div>
           </div>
 
           <div>

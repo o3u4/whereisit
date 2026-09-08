@@ -271,9 +271,19 @@ export async function createSpace(p: {
   });
 }
 
-/** resolve a nested path (root-first), creating missing segments (mkdir -p) */
-export async function ensurePath(names: string[]): Promise<{ id: number }> {
-  return request<{ id: number }>('POST', '/spaces/ensure-path', { names });
+/** resolve a nested path (root-first), creating missing segments (mkdir -p).
+ * type_tag applies to the leaf only when it is created. */
+export async function ensurePath(names: string[], typeTag?: string): Promise<{ id: number }> {
+  return request<{ id: number }>('POST', '/spaces/ensure-path', {
+    names,
+    type_tag: typeTag,
+  });
+}
+
+/** delete a space subtree (cascade) */
+export async function deleteSpace(spaceId: number): Promise<{ removed_ids: number[] }> {
+  const data = await request<{ removed_ids: number[] }>('DELETE', `/spaces/${spaceId}`);
+  return data;
 }
 
 export interface PatchFields {

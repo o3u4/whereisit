@@ -25,8 +25,10 @@ class SpaceMove(BaseModel):
 
 
 class PathIn(BaseModel):
-    """Segments of a nested path (mkdir -p semantics, from the root)."""
+    """Segments of a nested path (mkdir -p semantics, from the root).
+    type_tag applies to the leaf node when it is created."""
     names: list[str] = Field(min_length=1)
+    type_tag: Optional[str] = Field(default=None, max_length=40)
 
 
 class SpaceOut(BaseModel):

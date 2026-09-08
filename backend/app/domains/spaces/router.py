@@ -30,7 +30,7 @@ def read_path(space_id: int, user_id: int = Depends(get_current_user)) -> dict:
 @router.post("/ensure-path", response_model=dict, status_code=201)
 def ensure_path(payload: PathIn, user_id: int = Depends(get_current_user)) -> dict:
     with tx() as conn:
-        space_id = service.ensure_path(conn, user_id, payload.names)
+        space_id = service.ensure_path(conn, user_id, payload.names, type_tag=payload.type_tag)
     return ok({"id": space_id, "path": payload.names})
 
 

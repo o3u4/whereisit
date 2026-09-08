@@ -123,6 +123,34 @@ export default function Browse() {
     setNpsBase(base);
     setNpsOpen(true);
   };
+
+  const setTreeExpanded = (on: boolean) => {
+    const ids: Record<string, boolean> = {};
+    if (on) {
+      const walk = (ns: DirNode[]) => {
+        for (const n of ns) {
+          if (n.kids.length) {
+            ids[n.id] = true;
+            walk(n.kids);
+          }
+        }
+      };
+      walk(tree);
+    }
+    setExpanded(ids);
+  };
+
+  const doDeleteSpace = async () => {
+    if (!cur) return;
+    if (!window.confirm(t('space.deleteQ'))) return;
+    try {
+      await api.deleteSpace(Number(cur));
+      await useCatalog.getState().load();
+      navigate('/browse');
+    } catch {
+      toast(t('item.deleteFail'));
+    }
+  };
   const { url: spaceImg, hasImage: spaceHasImage } = useMedia('space', spaceId, !!spaceId, spaceImgNonce);
 
   const pickSpaceImg = async (e: ChangeEvent<HTMLInputElement>) => {
@@ -469,6 +497,14 @@ export default function Browse() {
           <span className="badge badge--count">{fmt('browse.subspaces', { n: curNode.kids.length })}</span>
         ) : null}
       </span>
+      <span className="rowline gap6" style={{ marginLeft: 10 }}>
+        <button type="button" className="btn btn--soft btn--sm" onClick={() => openCreate(pathNames(tree, cur))}>
+          ＋ {t('new.create')}
+        </button>
+        <button type="button" className="btn btn--ghost btn--sm" style={{ color: 'var(--danger)' }} onClick={() => void doDeleteSpace()}>
+          {t('space.delete')}
+        </button>
+      </span>
     </div>
   ) : null;
 
@@ -758,6 +794,14 @@ export default function Browse() {
                 <div className="panel-head">
                   <span className="section-kicker">{t('browse.tree')}</span>
                   <span className="t-xs t-muted t-mono">{t('browse.treeSub')}</span>
+                </div>
+                <div className="rowline gap6" style={{ padding: '2px 4px 6px' }}>
+                  <button type="button" className="btn btn--ghost btn--sm" onClick={() => setTreeExpanded(true)}>
+                    {t('browse.treeExpand')}
+                  </button>
+                  <button type="button" className="btn btn--ghost btn--sm" onClick={() => setTreeExpanded(false)}>
+                    {t('browse.treeCollapse')}
+                  </button>
                 </div>
                 <nav className="brw-tree">{tree.map(treeNode)}</nav>
               </aside>

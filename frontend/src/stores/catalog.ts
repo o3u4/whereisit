@@ -59,7 +59,7 @@ interface CatalogState {
   /** create one space under parentId (null = a root); resolves to the new space id */
   addSpace: (parentId: number | null, name: string) => Promise<number | null>;
   /** resolve/create a nested path (mkdir -p); resolves to the leaf space id */
-  ensurePath: (names: string[]) => Promise<number | null>;
+  ensurePath: (names: string[], typeTag?: string) => Promise<number | null>;
   moveItem: (slug: string, toId: string) => Promise<void>;
   /** reparent a container subtree under another container (drag & drop on browse) */
   moveDir: (dirId: string, intoId: string) => Promise<void>;
@@ -180,10 +180,10 @@ export const useCatalog = create<CatalogState>((set, get) => {
         }
       }),
 
-    ensurePath: (names) =>
+    ensurePath: (names, typeTag) =>
       enqueue(async () => {
         try {
-          const { id } = await api.ensurePath(names);
+          const { id } = await api.ensurePath(names, typeTag);
           set({ tree: await api.fetchTree(), error: null });
           return id;
         } catch (e) {
