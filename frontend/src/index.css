@@ -1253,3 +1253,13 @@ main { flex: 1; }
   box-shadow: none;
   border-color: var(--border);
 }
+/* flat: input fields get a visible outline instead of a near-white hairline */
+[data-theme='flat'] .field,
+[data-theme='flat'] select.field,
+[data-theme='flat'] textarea.field {
+  background: var(--surface);
+  border: 1px solid var(--border-strong);
+  box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.6);
+}
+[data-theme='flat'] .field:hover { border-color: var(--fg); }
+[data-theme='flat'] .field:focus { border-color: var(--accent); box-shadow: 0 0 0 3px color-mix(in oklch, var(--accent) 18%, transparent); }
