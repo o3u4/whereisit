@@ -1371,6 +1371,7 @@ main { flex: 1; }
 }
 
 [data-theme='pixel'] .chip { border: 2px solid var(--fg); border-radius: 0; color: var(--fg); }
+[data-theme='pixel'] .chip:empty { border-color: transparent; background: transparent; box-shadow: none; } /* decorative spacer chip stays invisible */
 [data-theme='pixel'] .chip--glass { background: var(--surface); }
 [data-theme='pixel'] .chip--active { background: var(--accent); color: #fff; box-shadow: 2px 2px 0 0 var(--px-ink); }
 
