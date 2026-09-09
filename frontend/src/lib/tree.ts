@@ -120,6 +120,14 @@ export function directItemsIn(items: Item[], id: string): Item[] {
   return items.filter((it) => it.spot === id);
 }
 
+/** top `n` item names by total quantity across all presences — the "frequent" or
+ * "常找" quick list. Computed from real data so a chip always finds something. */
+export function frequentItemNames(items: Item[], n = 4): string[] {
+  const tally = new Map<string, number>();
+  for (const it of items) tally.set(it.name, (tally.get(it.name) ?? 0) + it.qty);
+  return [...tally.entries()].sort((a, b) => b[1] - a[1]).slice(0, n).map(([name]) => name);
+}
+
 /** root containers as hub scene cards (custom tints win; otherwise a distinct
  * auto gradient per card so new scenes aren't all one color) */
 export function scenesFromTree(nodes: DirNode[]): Scene[] {

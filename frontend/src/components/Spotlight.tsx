@@ -7,7 +7,7 @@ import { useNavigate } from 'react-router-dom';
 import { Icon, TYPE_ICON } from './icons';
 import { Seg, Kbd, EmptyState, StatusBadge } from './ui';
 import { catMeta } from '../lib/meta';
-import { dirById, pathNames } from '../lib/tree';
+import { dirById, frequentItemNames, pathNames } from '../lib/tree';
 import type { Item } from '../lib/types';
 import type { SearchResult } from '../api/client';
 import type { SearchModeDTO } from '../api/types';
@@ -19,7 +19,6 @@ const V = (o: Record<string, string | number>): CSSProperties => o as CSSPropert
 
 type Row = { kind: 'item'; slug: string } | { kind: 'space'; slug: string };
 
-const HOT = ['HDMI 线', '备用钥匙', '护照', '剪刀'];
 
 export function Spotlight() {
   const navigate = useNavigate();
@@ -52,7 +51,7 @@ export function Spotlight() {
   const rows = useMemo<Row[]>(() => {
     if (!query) {
       const slugs: string[] = [];
-      for (const n of HOT) {
+      for (const n of frequentItemNames(items)) {
         const s = items.find((i) => i.name === n)?.slug;
         if (s) slugs.push(s);
       }

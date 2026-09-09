@@ -14,7 +14,7 @@ import { Icon, CDot, TYPE_ICON, type IconName } from '../components/icons';
 import { Wordmark, Seg, Switch, Sheet, StatusBadge, Kbd, ToastsHost } from '../components/ui';
 import { TabBar, TabLink, TabAction } from '../components/TabBar';
 import { TYPE_TINT } from '../lib/meta';
-import { countItemsIn, pathNames, scenesFromTree } from '../lib/tree';
+import { countItemsIn, frequentItemNames, pathNames, scenesFromTree } from '../lib/tree';
 import type { DirNode, Item, RecentEntry, Scene } from '../lib/types';
 import { useCatalog } from '../stores/catalog';
 import { useAuth } from '../stores/auth';
@@ -85,6 +85,7 @@ export default function Hub() {
   const navigate = useNavigate();
   const { t, fmt } = useTr();
   const tree = useCatalog((s) => s.tree);
+  const items = useCatalog((s) => s.items);
   const recent = useCatalog((s) => s.recent);
   const setReveal = useCatalog((s) => s.setReveal);
   const toast = useToast((s) => s.push);
@@ -119,7 +120,7 @@ export default function Hub() {
 
   const scenes = useMemo(() => scenesFromTree(tree), [tree]);
 
-  const QUICK = ['钥匙', 'HDMI 线', '护照', '剪刀'];
+  const QUICK = useMemo(() => frequentItemNames(items), [items]);
 
   return (
     <div className="tone-hub">
