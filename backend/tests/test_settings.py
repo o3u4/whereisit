@@ -37,6 +37,7 @@ def test_theme_roundtrip(client):
     r = client.put("/api/settings", json={"theme": "flat"})
     assert r.status_code == 200
     assert r.json()["data"]["theme"] == "flat"
+    assert client.put("/api/settings", json={"theme": "pixel"}).status_code == 200
     assert client.put("/api/settings", json={"theme": "bogus"}).status_code == 400
 
 

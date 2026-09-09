@@ -1263,3 +1263,95 @@ main { flex: 1; }
 }
 [data-theme='flat'] .field:hover { border-color: var(--fg); }
 [data-theme='flat'] .field:focus { border-color: var(--accent); box-shadow: 0 0 0 3px color-mix(in oklch, var(--accent) 18%, transparent); }
+
+/* ============================ pixel theme (NES-inspired) ====================
+   Retro chunky UI via pure CSS: thick borders + hard offset shadows + vivid
+   colour blocks + square corners. No CSS Houdini worklet, so it also works over
+   plain LAN http. Pixel fonts (Press Start 2P / Zpix) are not bundled by
+   default — the chunky borders carry the look on native/system fonts. */
+[data-theme='pixel'] {
+  --bg: #e9e5d9;
+  --surface: #fffdf6;
+  --fg: #20242b;
+  --muted: #5a5f6b;
+  --faint: #8a8f9c;
+  --border: #20242b;
+  --border-strong: #20242b;
+  --accent: #2e5bff;
+  --accent-deep: #2245c0;
+  --accent-ink: #fff;
+  --accent-soft: #dfe6ff;
+  --accent-softer: #eef2ff;
+  --danger: #e0342c;
+  --danger-soft: #ffdbd9;
+  --present: #1f9d54;
+  --present-soft: #d7f2e1;
+  --lent: #e8a13a;
+  --lent-soft: #fdeecf;
+  --gone: #6b7280;
+  --gone-soft: #e5e7eb;
+  --r-xs: 0; --r-sm: 0; --r-md: 2px; --r-lg: 2px; --r-xl: 4px;
+  --sh-1: 2px 2px 0 0 #20242b;
+  --sh-2: 3px 3px 0 0 #20242b;
+  --sh-3: 5px 5px 0 0 #20242b;
+}
+[data-theme='pixel'] .wall { background: var(--bg); }
+[data-theme='pixel'] .blob { display: none; }
+[data-theme='pixel'] * { backdrop-filter: none !important; -webkit-backdrop-filter: none !important; }
+
+[data-theme='pixel'] .glass,
+[data-theme='pixel'] .glass-panel,
+[data-theme='pixel'] .glass-card,
+[data-theme='pixel'] .topglass,
+[data-theme='pixel'] .panel,
+[data-theme='pixel'] .spot,
+[data-theme='pixel'] .sheet,
+[data-theme='pixel'] .item-row,
+[data-theme='pixel'] .glass-chip {
+  background: var(--surface);
+  border: 3px solid var(--fg);
+  border-radius: 0;
+  box-shadow: 5px 5px 0 0 var(--fg);
+}
+
+[data-theme='pixel'] .btn {
+  border: 2px solid var(--fg);
+  border-radius: 4px;
+  box-shadow: 3px 3px 0 0 var(--fg);
+  font-weight: 700; letter-spacing: 0.02em;
+}
+[data-theme='pixel'] .btn--primary { background: var(--accent); color: #fff; }
+[data-theme='pixel'] .btn--soft { background: var(--accent-soft); color: var(--fg); }
+[data-theme='pixel'] .btn--ghost { background: transparent; color: var(--fg); box-shadow: 2px 2px 0 0 var(--fg); }
+[data-theme='pixel'] .btn--danger { background: var(--danger); color: #fff; }
+[data-theme='pixel'] .btn:active { transform: translate(2px, 2px); box-shadow: 1px 1px 0 0 var(--fg); }
+
+[data-theme='pixel'] .field,
+[data-theme='pixel'] select.field,
+[data-theme='pixel'] textarea.field {
+  background: var(--surface);
+  border: 2px solid var(--fg);
+  border-radius: 0;
+}
+[data-theme='pixel'] .field::placeholder { color: var(--faint); }
+[data-theme='pixel'] .field:focus {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px color-mix(in oklch, var(--accent) 26%, transparent);
+}
+
+[data-theme='pixel'] .seg button { border: 2px solid var(--fg); border-radius: 0; }
+[data-theme='pixel'] .seg button[aria-selected='true'] { background: var(--accent); color: #fff; border-color: var(--fg); }
+[data-theme='pixel'] .seg button[aria-selected='false'] { background: var(--surface); color: var(--fg); }
+
+[data-theme='pixel'] .chip { border: 2px solid var(--fg); border-radius: 0; color: var(--fg); }
+[data-theme='pixel'] .chip--glass { background: var(--surface); }
+[data-theme='pixel'] .chip--active { background: var(--accent); color: #fff; }
+
+[data-theme='pixel'] .badge, [data-theme='pixel'] .tag {
+  border: 1.5px solid var(--fg); border-radius: 0; color: var(--fg);
+}
+
+[data-theme='pixel'] .result-row { border: 2px solid transparent; border-radius: 0; }
+[data-theme='pixel'] .result-row.sel { border-color: var(--fg); background: var(--accent-softer); box-shadow: 3px 3px 0 0 var(--fg); }
+
+[data-theme='pixel'] .scene-card { border-radius: 0; border-color: var(--fg); box-shadow: 4px 4px 0 0 var(--fg); }

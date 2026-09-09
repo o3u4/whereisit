@@ -6,13 +6,13 @@
 import { create } from 'zustand';
 
 const KEY = 'whereisit.theme';
-const THEMES = ['apple', 'flat'] as const;
+const THEMES = ['apple', 'flat', 'pixel'] as const;
 export type Theme = (typeof THEMES)[number];
 
 function load(): Theme {
   try {
     const v = localStorage.getItem(KEY);
-    if (v === 'apple' || v === 'flat') return v;
+    if (v === 'apple' || v === 'flat' || v === 'pixel') return v;
   } catch {
     /* ignore */
   }

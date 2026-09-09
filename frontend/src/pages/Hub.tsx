@@ -336,7 +336,7 @@ function SettingsSheet({
     }
   };
 
-  const setThemePref = async (th: 'apple' | 'flat') => {
+  const setThemePref = async (th: 'apple' | 'flat' | 'pixel') => {
     useTheme.getState().setTheme(th); // apply + persist locally immediately
     try {
       setS(await api.saveSettings({ theme: th }));
@@ -525,10 +525,11 @@ function SettingsSheet({
         <span className="field-label">{t('set.theme')}</span>
         <Seg
           value={s?.theme ?? 'apple'}
-          onChange={(v) => void setThemePref(v as 'apple' | 'flat')}
+          onChange={(v) => void setThemePref(v as 'apple' | 'flat' | 'pixel')}
           options={[
             { value: 'apple', label: t('set.themeApple') },
             { value: 'flat', label: t('set.themeFlat') },
+            { value: 'pixel', label: t('set.themePixel') },
           ]}
         />
       </div>

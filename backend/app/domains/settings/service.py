@@ -66,8 +66,8 @@ def put(conn: sqlite3.Connection, user_id: int, *, lang: Optional[str] = None, t
             raise BadRequest("lang must be 'zh' or 'en'")
         _put(conn, "lang", lang)
     if theme is not None:
-        if theme not in ("apple", "flat"):
-            raise BadRequest("theme must be 'apple' or 'flat'")
+        if theme not in ("apple", "flat", "pixel"):
+            raise BadRequest("theme must be 'apple', 'flat' or 'pixel'")
         _put(conn, "theme", theme)
     if token_enabled is not None:
         if token_enabled:
