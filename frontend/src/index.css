@@ -1265,14 +1265,16 @@ main { flex: 1; }
 [data-theme='flat'] .field:focus { border-color: var(--accent); box-shadow: 0 0 0 3px color-mix(in oklch, var(--accent) 18%, transparent); }
 
 /* ============================ pixel theme (NES-inspired) ====================
-   Retro chunky UI via pure CSS: thick borders + hard offset shadows + vivid
-   colour blocks + square corners. No CSS Houdini worklet, so it also works over
-   plain LAN http. Pixel fonts (Press Start 2P / Zpix) are not bundled by
-   default — the chunky borders carry the look on native/system fonts. */
+   Retro, high-contrast UI via pure CSS — no CSS Houdini worklet, so it works
+   over plain LAN http. Past the black outlines, this adds NES-style volume:
+   chiseled bevels (top-light / bottom-dark), asymmetric chunky borders, sunken
+   input slots, pressed 3D buttons and a faint pixel-checker wallpaper. */
 [data-theme='pixel'] {
   --bg: #e9e5d9;
   --surface: #fffdf6;
   --fg: #20242b;
+  --px-ink: #171920;      /* hard shadow / outline */
+  --px-hi: #fffdf6;       /* bevel highlight */
   --muted: #5a5f6b;
   --faint: #8a8f9c;
   --border: #20242b;
@@ -1291,14 +1293,19 @@ main { flex: 1; }
   --gone: #6b7280;
   --gone-soft: #e5e7eb;
   --r-xs: 0; --r-sm: 0; --r-md: 2px; --r-lg: 2px; --r-xl: 4px;
-  --sh-1: 2px 2px 0 0 #20242b;
-  --sh-2: 3px 3px 0 0 #20242b;
-  --sh-3: 5px 5px 0 0 #20242b;
+  --sh-1: 2px 2px 0 0 var(--px-ink);
+  --sh-2: 3px 3px 0 0 var(--px-ink);
+  --sh-3: 5px 5px 0 0 var(--px-ink);
 }
-[data-theme='pixel'] .wall { background: var(--bg); }
+[data-theme='pixel'] .wall {
+  background:
+    repeating-conic-gradient(from 0deg, #e3dfd2 0deg 90deg, #ebe7da 90deg 180deg) 0 0 / 12px 12px,
+    linear-gradient(#ece8dd, #e6e1d3);
+}
 [data-theme='pixel'] .blob { display: none; }
 [data-theme='pixel'] * { backdrop-filter: none !important; -webkit-backdrop-filter: none !important; }
 
+/* chunky cards/panels: top-light bevel + asymmetric bottom/right border */
 [data-theme='pixel'] .glass,
 [data-theme='pixel'] .glass-panel,
 [data-theme='pixel'] .glass-card,
@@ -1309,49 +1316,77 @@ main { flex: 1; }
 [data-theme='pixel'] .item-row,
 [data-theme='pixel'] .glass-chip {
   background: var(--surface);
-  border: 3px solid var(--fg);
+  border: 2px solid var(--fg);
+  border-right-width: 5px;
+  border-bottom-width: 5px;
   border-radius: 0;
-  box-shadow: 5px 5px 0 0 var(--fg);
+  box-shadow: inset 0 1px 0 var(--px-hi), 4px 4px 0 0 var(--px-ink);
 }
 
+/* 3D pressed buttons: top-light bevel, bottom-dark bar, hard outline */
 [data-theme='pixel'] .btn {
   border: 2px solid var(--fg);
   border-radius: 4px;
-  box-shadow: 3px 3px 0 0 var(--fg);
   font-weight: 700; letter-spacing: 0.02em;
+  background-image: linear-gradient(rgba(255, 255, 255, 0.22), rgba(255, 255, 255, 0) 46%);
+  box-shadow:
+    inset 0 3px 0 rgba(255, 255, 255, 0.55),
+    inset 0 -4px 0 rgba(0, 0, 0, 0.2),
+    3px 3px 0 0 var(--px-ink);
 }
-[data-theme='pixel'] .btn--primary { background: var(--accent); color: #fff; }
-[data-theme='pixel'] .btn--soft { background: var(--accent-soft); color: var(--fg); }
-[data-theme='pixel'] .btn--ghost { background: transparent; color: var(--fg); box-shadow: 2px 2px 0 0 var(--fg); }
-[data-theme='pixel'] .btn--danger { background: var(--danger); color: #fff; }
-[data-theme='pixel'] .btn:active { transform: translate(2px, 2px); box-shadow: 1px 1px 0 0 var(--fg); }
+[data-theme='pixel'] .btn--primary { background-color: var(--accent); color: #fff; }
+[data-theme='pixel'] .btn--soft { background-color: var(--accent-soft); color: var(--fg); }
+[data-theme='pixel'] .btn--danger { background-color: var(--danger); color: #fff; }
+[data-theme='pixel'] .btn--ghost { background-color: transparent; box-shadow: inset 0 3px 0 rgba(255, 255, 255, 0.35), 2px 2px 0 0 var(--px-ink); }
+[data-theme='pixel'] .btn:active {
+  transform: translate(2px, 3px);
+  background-image: none;
+  box-shadow: inset 0 2px 0 rgba(0, 0, 0, 0.12), 1px 1px 0 0 var(--px-ink);
+}
 
+/* sunken input slots */
 [data-theme='pixel'] .field,
 [data-theme='pixel'] select.field,
 [data-theme='pixel'] textarea.field {
-  background: var(--surface);
+  background: color-mix(in oklch, var(--bg) 32%, var(--surface));
   border: 2px solid var(--fg);
   border-radius: 0;
+  box-shadow: inset 3px 3px 0 0 rgba(0, 0, 0, 0.12), inset -1px -1px 0 0 var(--px-hi);
 }
 [data-theme='pixel'] .field::placeholder { color: var(--faint); }
 [data-theme='pixel'] .field:focus {
   border-color: var(--accent);
-  box-shadow: 0 0 0 3px color-mix(in oklch, var(--accent) 26%, transparent);
+  box-shadow: inset 3px 3px 0 0 rgba(0, 0, 0, 0.12), 0 0 0 3px color-mix(in oklch, var(--accent) 26%, transparent);
 }
 
+/* segmented control: selected pressed-in, others raised */
 [data-theme='pixel'] .seg button { border: 2px solid var(--fg); border-radius: 0; }
-[data-theme='pixel'] .seg button[aria-selected='true'] { background: var(--accent); color: #fff; border-color: var(--fg); }
-[data-theme='pixel'] .seg button[aria-selected='false'] { background: var(--surface); color: var(--fg); }
+[data-theme='pixel'] .seg button[aria-selected='true'] {
+  background: var(--accent); color: #fff;
+  box-shadow: inset 0 -3px 0 rgba(0, 0, 0, 0.22), inset 0 2px 0 rgba(255, 255, 255, 0.28);
+}
+[data-theme='pixel'] .seg button[aria-selected='false'] {
+  background: var(--surface); color: var(--fg);
+  box-shadow: inset 0 3px 0 rgba(255, 255, 255, 0.6);
+}
 
 [data-theme='pixel'] .chip { border: 2px solid var(--fg); border-radius: 0; color: var(--fg); }
 [data-theme='pixel'] .chip--glass { background: var(--surface); }
-[data-theme='pixel'] .chip--active { background: var(--accent); color: #fff; }
+[data-theme='pixel'] .chip--active { background: var(--accent); color: #fff; box-shadow: 2px 2px 0 0 var(--px-ink); }
 
+/* solid colour badges/tags with a bevel so they read as pixel blocks */
 [data-theme='pixel'] .badge, [data-theme='pixel'] .tag {
   border: 1.5px solid var(--fg); border-radius: 0; color: var(--fg);
+  box-shadow: inset 0 2px 0 rgba(255, 255, 255, 0.45), inset 0 -2px 0 rgba(0, 0, 0, 0.14);
 }
+[data-theme='pixel'] .tag--type, [data-theme='pixel'] .tag { background: var(--surface); }
 
 [data-theme='pixel'] .result-row { border: 2px solid transparent; border-radius: 0; }
-[data-theme='pixel'] .result-row.sel { border-color: var(--fg); background: var(--accent-softer); box-shadow: 3px 3px 0 0 var(--fg); }
+[data-theme='pixel'] .result-row.sel {
+  border-color: var(--fg);
+  border-left: 8px solid var(--accent);
+  background: var(--accent-softer);
+  box-shadow: 3px 3px 0 0 var(--px-ink);
+}
 
-[data-theme='pixel'] .scene-card { border-radius: 0; border-color: var(--fg); box-shadow: 4px 4px 0 0 var(--fg); }
+[data-theme='pixel'] .scene-card { border-radius: 0; border-color: var(--fg); box-shadow: 4px 4px 0 0 var(--px-ink); }
