@@ -19,6 +19,7 @@ import type { DirNode, Item, RecentEntry, Scene } from '../lib/types';
 import { useCatalog } from '../stores/catalog';
 import { useAuth } from '../stores/auth';
 import { useOverlay } from '../stores/overlay';
+import { useFreq } from '../stores/freq';
 import { useTheme } from '../stores/theme';
 import { useToast } from '../stores/toast';
 import { useTr } from '../i18n';
@@ -120,7 +121,8 @@ export default function Hub() {
 
   const scenes = useMemo(() => scenesFromTree(tree), [tree]);
 
-  const QUICK = useMemo(() => frequentItemNames(items), [items]);
+  const freqTick = useFreq((s) => s.tick);
+  const QUICK = useMemo(() => frequentItemNames(items), [items, freqTick]);
 
   return (
     <div className="tone-hub">

@@ -12,6 +12,8 @@ import { create } from 'zustand';
 import * as api from '../api/client';
 import type { SearchModeDTO } from '../api/types';
 import type { Category, DirNode, Item, ItemStatus, RecentEntry } from '../lib/types';
+import { bumpFreq } from '../lib/tree';
+import { useFreq } from './freq';
 
 export interface AddItemInput {
   name: string;
@@ -312,8 +314,14 @@ export const useCatalog = create<CatalogState>((set, get) => {
         }
       }),
 
-    search: (q, mode, scopeSpaceId) =>
-      api.search({ q, mode, scope_space_id: scopeSpaceId }),
+    search: async (q, mode, scopeSpaceId) => {
+      const r = await api.search({ q, mode, scope_space_id: scopeSpaceId });
+      if (q.trim() && r.items.length) {
+        for (const it of r.items) bumpFreq(it.name);
+        useFreq.getState().bump();
+      }
+      return r;
+    },
 
     deleteItem: (slug) =>
       enqueue(async () => {

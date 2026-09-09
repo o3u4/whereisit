@@ -120,12 +120,59 @@ export function directItemsIn(items: Item[], id: string): Item[] {
   return items.filter((it) => it.spot === id);
 }
 
-/** top `n` item names by total quantity across all presences — the "frequent" or
- * "常找" quick list. Computed from real data so a chip always finds something. */
+/* Lookup-frequency tracking. Every time a search resolves to items we bump their
+ * names here (localStorage), so the "frequent / 常找" list reflects what the
+ * user actually looks up rather than just total quantity. */
+const FREQ_KEY = 'whereisit.freq';
+
+function readFreq(): Map<string, number> {
+  try {
+    const raw = localStorage.getItem(FREQ_KEY);
+    if (raw) return new Map(Object.entries(JSON.parse(raw) as Record<string, number>));
+  } catch {
+    /* ignore */
+  }
+  return new Map();
+}
+
+function writeFreq(m: Map<string, number>, cap = 80) {
+  const top = [...m.entries()].sort((a, b) => b[1] - a[1]).slice(0, cap);
+  try {
+    localStorage.setItem(FREQ_KEY, JSON.stringify(Object.fromEntries(top)));
+  } catch {
+    /* ignore */
+  }
+}
+
+/** record that `name` was the target of a search hit */
+export function bumpFreq(name: string) {
+  const m = readFreq();
+  m.set(name, (m.get(name) ?? 0) + 1);
+  writeFreq(m);
+}
+
+function topSearchNames(n: number): string[] {
+  return [...readFreq().entries()].sort((a, b) => b[1] - a[1]).slice(0, n).map(([name]) => name);
+}
+
+/** top `n` item names for the "frequent / 常找" quick list. Ranks by search
+ * frequency, backfilling with most-total-quantity items so a chip always hits. */
 export function frequentItemNames(items: Item[], n = 4): string[] {
+  const have = new Set(items.map((it) => it.name));
   const tally = new Map<string, number>();
   for (const it of items) tally.set(it.name, (tally.get(it.name) ?? 0) + it.qty);
-  return [...tally.entries()].sort((a, b) => b[1] - a[1]).slice(0, n).map(([name]) => name);
+  const byQty = [...tally.entries()].sort((a, b) => b[1] - a[1]).map(([name]) => name);
+
+  const out: string[] = [];
+  for (const name of topSearchNames(n * 3)) {
+    if (have.has(name) && !out.includes(name)) out.push(name);
+    if (out.length >= n) break;
+  }
+  for (const name of byQty) {
+    if (!out.includes(name)) out.push(name);
+    if (out.length >= n) break;
+  }
+  return out.slice(0, n);
 }
 
 /** root containers as hub scene cards (custom tints win; otherwise a distinct

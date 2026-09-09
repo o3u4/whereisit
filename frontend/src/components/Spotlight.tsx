@@ -13,6 +13,7 @@ import type { SearchResult } from '../api/client';
 import type { SearchModeDTO } from '../api/types';
 import { useCatalog } from '../stores/catalog';
 import { useOverlay } from '../stores/overlay';
+import { useFreq } from '../stores/freq';
 import { useTr } from '../i18n';
 
 const V = (o: Record<string, string | number>): CSSProperties => o as CSSProperties;
@@ -48,6 +49,7 @@ export function Spotlight() {
   }, [spot, initialQ]);
 
   const query = q.trim().toLowerCase();
+  const freqTick = useFreq((s) => s.tick);
   const rows = useMemo<Row[]>(() => {
     if (!query) {
       const slugs: string[] = [];
@@ -60,7 +62,7 @@ export function Spotlight() {
     const itemRows: Row[] = (res?.items ?? []).map((it) => ({ kind: 'item', slug: it.slug }));
     const spaceRows: Row[] = (res?.spaces ?? []).map((sp) => ({ kind: 'space', slug: String(sp.id) }));
     return [...itemRows, ...spaceRows];
-  }, [query, res, items]);
+  }, [query, res, items, freqTick]);
 
   useEffect(() => setSel(-1), [query, mode]);
 
