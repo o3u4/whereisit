@@ -16,6 +16,7 @@ import { Wordmark, Seg, Sheet, StatusBadge, ToastsHost } from '../components/ui'
 import { TabBar, TabLink } from '../components/TabBar';
 import { ItemSheet } from '../components/ItemSheet';
 import { NewPathSheet } from '../components/NewPathSheet';
+import { TreeBuilderSheet } from '../components/TreeBuilderSheet';
 import { catMeta, TYPE_TINT } from '../lib/meta';
 import { chainOf, countItemsIn, dirById, directItemsIn, pathNames, sceneTint } from '../lib/tree';
 import type { DirNode, Item } from '../lib/types';
@@ -125,6 +126,9 @@ export default function Browse() {
   };
   const [npsOpen, setNpsOpen] = useState(false);
   const [npsBase, setNpsBase] = useState<string[]>([]);
+  const [tbsOpen, setTbsOpen] = useState(false);
+  const tbsTarget = cur ? Number(cur) : null;
+  const tbsName = curNode?.name ?? t('browse.topScenes');
   const openCreate = (base: string[]) => {
     setNpsBase(base);
     setNpsOpen(true);
@@ -437,7 +441,10 @@ export default function Browse() {
       <div className="brw-section">
         <span className="st">{t('browse.topScenes')}</span>
         <span className="n">{fmt('browse.topScenesNote', { n: tree.length })}</span>
-        <button type="button" className="btn btn--soft btn--sm" style={{ marginLeft: 'auto' }} onClick={() => openCreate([])}>
+        <button type="button" className="btn btn--ghost btn--sm" style={{ marginLeft: 'auto' }} onClick={() => setTbsOpen(true)}>
+          {t('llm.title')}
+        </button>
+        <button type="button" className="btn btn--soft btn--sm" onClick={() => openCreate([])}>
           ＋ {t('new.create')}
         </button>
       </div>
@@ -505,6 +512,9 @@ export default function Browse() {
         ) : null}
       </span>
       <span className="rowline gap6" style={{ marginLeft: 10 }}>
+        <button type="button" className="btn btn--ghost btn--sm" onClick={() => setTbsOpen(true)}>
+          {t('llm.title')}
+        </button>
         <button type="button" className="btn btn--soft btn--sm" onClick={() => openCreate(pathNames(tree, cur))}>
           ＋ {t('new.create')}
         </button>
@@ -864,6 +874,17 @@ export default function Browse() {
         }}
       />
       <ItemSheet item={item} open={item !== null} onClose={() => setItemSlug(null)} />
+
+      <TreeBuilderSheet
+        open={tbsOpen}
+        onClose={() => setTbsOpen(false)}
+        targetId={tbsTarget}
+        targetName={tbsName}
+        onDone={() => {
+          setTbsOpen(false);
+          void useCatalog.getState().load().then(() => navigate(tbsTarget ? `/browse?at=${tbsTarget}` : '/browse'));
+        }}
+      />
 
       {spaceImgAct && spaceId != null ? (
         <Sheet open={spaceImgAct} onClose={() => setSpaceImgAct(false)} side="bottom" title={t('space.imgActions')} grab>

@@ -296,6 +296,46 @@ export async function updateSpaceLayout(
   return request<SpaceOut>('PATCH', `/spaces/${spaceId}`, { layout_json: JSON.stringify(layout) });
 }
 
+/* ---- LLM: recognize a text/photo into a tree, then bulk-build it ------------ */
+export interface TreeItem {
+  name: string;
+  alias?: string;
+  category?: string;
+  unit?: string;
+  qty?: number;
+  status?: ItemStatus;
+  notes?: string;
+  attrs?: [string, string][];
+}
+export interface TreeNode {
+  name: string;
+  type_tag?: string;
+  children?: TreeNode[];
+  items?: TreeItem[];
+}
+
+/** ask the multimodal model to turn a description / photo into a category tree */
+export async function recognizeTree(
+  text?: string,
+  imageBase64?: string,
+): Promise<{ nodes: TreeNode[] }> {
+  return request<{ nodes: TreeNode[] }>('POST', '/llm/recognize', {
+    text,
+    image_base64: imageBase64,
+  });
+}
+
+/** bulk-create the tree under a chosen parent (find-or-create, idempotent) */
+export async function buildTree(
+  parentId: number | null,
+  nodes: TreeNode[],
+): Promise<{ created: { spaces: number; items: number } }> {
+  return request<{ created: { spaces: number; items: number } }>('POST', '/spaces/build-tree', {
+    parent_id: parentId,
+    nodes,
+  });
+}
+
 export interface PatchFields {
   qty?: number;
   status?: ItemStatus;
