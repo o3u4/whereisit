@@ -3,3 +3,4 @@ uvicorn[standard]>=0.30
 cryptography>=43
 pydantic>=2.7
 python-multipart>=0.0.9  # UploadFile/Form (image upload)
+openai>=1.50  # LLM parse (OpenAI-compatible multimodal)

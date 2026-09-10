@@ -23,3 +23,10 @@ SCHEMA_DIR = BACKEND_DIR / "app" / "db" / "schema"
 
 PORT = int(os.environ.get("WHEREISIT_PORT", "8080"))
 FRONTEND_DIST = BACKEND_DIR.parent / "frontend" / "dist"
+
+# ---- LLM (multi-modal, OpenAI-compatible; used by structure/photo parsing) ----
+# operator sets base_url + key + model (any OpenAI-compatible endpoint incl. a
+# local ollama). Blank LLM_BASE_URL => the feature is off (endpoints return 503).
+LLM_BASE_URL = os.environ.get("LLM_BASE_URL", "").strip()
+LLM_API_KEY = os.environ.get("LLM_API_KEY", "").strip()
+LLM_MODEL = os.environ.get("LLM_MODEL", "Qwen/Qwen2.5-VL-7B-Instruct").strip()

@@ -24,6 +24,32 @@ class SpaceMove(BaseModel):
     index: Optional[int] = Field(default=None, ge=0)
 
 
+class TreeItem(BaseModel):
+    name: str
+    alias: Optional[str] = None
+    category: Optional[str] = None
+    unit: Optional[str] = None
+    qty: int = 1
+    status: Optional[str] = None
+    notes: Optional[str] = None
+    attrs: Optional[list[tuple[str, str]]] = None
+
+
+class TreeNode(BaseModel):
+    name: str
+    type_tag: Optional[str] = None
+    children: list["TreeNode"] = []
+    items: list[TreeItem] = []
+
+
+TreeNode.model_rebuild()
+
+
+class BuildTreeBody(BaseModel):
+    parent_id: Optional[int] = None
+    nodes: list[TreeNode] = []
+
+
 class PathIn(BaseModel):
     """Segments of a nested path (mkdir -p semantics, from the root).
     type_tag applies to the leaf node when it is created."""

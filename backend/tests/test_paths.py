@@ -90,6 +90,35 @@ def test_ensure_path_updates_type_on_reuse(client):
     assert client.get("/api/spaces/tree").json()["data"][0]["type_tag"] == "room"
 
 
+def test_build_tree_creates_structure(client):
+    payload = {
+        "parent_id": None,
+        "nodes": [
+            {
+                "name": "卧室",
+                "children": [{"name": "衣柜", "items": [{"name": "外套", "qty": 2}, {"name": "毛衣", "category": "衣物"}]}],
+                "items": [{"name": "床", "unit": "张"}],
+            }
+        ],
+    }
+    r = client.post("/api/spaces/build-tree", json=payload)
+    assert r.status_code == 201, r.text
+    d = r.json()["data"]["created"]
+    assert d["spaces"] >= 2
+    assert d["items"] == 3
+
+    tree = client.get("/api/spaces/tree").json()["data"]
+    assert tree[0]["name"] == "卧室"
+    assert tree[0]["children"][0]["name"] == "衣柜"
+    names = [i["name"] for i in client.get("/api/items").json()["data"]]
+    assert "外套" in names and "毛衣" in names and "床" in names
+
+    # re-building the same tree creates no extra spaces/layers (find-or-create)
+    assert client.post("/api/spaces/build-tree", json=payload).status_code == 201
+    tree2 = client.get("/api/spaces/tree").json()["data"]
+    assert len(tree2) == 1 and len(tree2[0]["children"]) == 1
+
+
 def test_ensure_path_isolated_per_user(client):
     _ensure(client, ["客厅"])
 

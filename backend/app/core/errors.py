@@ -23,3 +23,7 @@ class BadRequest(ApiError):
 
 class Forbidden(ApiError):
     status_code = 403
+
+
+class ServiceUnavailable(ApiError):
+    status_code = 503

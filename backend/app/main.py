@@ -13,6 +13,7 @@ from app.db import migrations
 from app.domains.backup.router import router as backup_router
 from app.domains.categories.router import router as categories_router
 from app.domains.items.router import router as items_router
+from app.domains.llm.router import router as llm_router
 from app.domains.media.router import router as media_router
 from app.domains.search.router import router as search_router
 from app.domains.settings.router import router as settings_router
@@ -33,6 +34,7 @@ app.middleware("http")(auth_middleware)
 
 app.include_router(spaces_router)
 app.include_router(items_router)
+app.include_router(llm_router)
 app.include_router(media_router)
 app.include_router(search_router)
 app.include_router(categories_router)

@@ -6,9 +6,11 @@ from fastapi import APIRouter, Depends, Query
 
 from app.core.api import ok
 from app.core.auth import get_current_user
+from app.core.normalize import norm_text
 from app.db.engine import read, tx
+from app.domains.items import service as items_service
 from app.domains.spaces import service
-from app.domains.spaces.schemas import PathIn, SpaceCreate, SpaceMove, SpaceOut, SpaceUpdate
+from app.domains.spaces.schemas import BuildTreeBody, PathIn, SpaceCreate, SpaceMove, SpaceOut, SpaceUpdate
 
 router = APIRouter(prefix="/api/spaces", tags=["spaces"])
 
@@ -25,6 +27,67 @@ def read_tree(
 def read_path(space_id: int, user_id: int = Depends(get_current_user)) -> dict:
     with read() as conn:
         return ok(service.path(conn, user_id, space_id))
+
+
+def _build_tree_nodes(conn, user_id: int, parent_id: int | None, nodes: list) -> tuple[int, int]:
+    """Recursively create spaces + their items under `parent_id` (find-or-create
+    per name so it's idempotent). Returns (spaces_created, items_created)."""
+    cs = ci = 0
+    for node in nodes:
+        name = (node.name or "").strip()
+        if not name:
+            continue
+        nn = norm_text(name)
+        if parent_id is None:
+            row = conn.execute(
+                "SELECT id FROM spaces WHERE parent_id IS NULL AND name_norm = ? AND owner_id = ?",
+                (nn, user_id),
+            ).fetchone()
+        else:
+            row = conn.execute(
+                "SELECT id FROM spaces WHERE parent_id = ? AND name_norm = ? AND owner_id = ?",
+                (parent_id, nn, user_id),
+            ).fetchone()
+        if row is not None:
+            sid = row["id"]
+        else:
+            cur = conn.execute(
+                "INSERT INTO spaces (parent_id, name, name_norm, ord, type_tag, owner_id) VALUES (?,?,?,0,?,?)",
+                (parent_id, name, nn, node.type_tag or "generic", user_id),
+            )
+            sid = int(cur.lastrowid)
+        cs += 1
+        s2, i2 = _build_tree_nodes(conn, user_id, sid, node.children or [])
+        cs += s2
+        ci += i2
+        for it in node.items or []:
+            iname = (it.name or "").strip()
+            if not iname:
+                continue
+            items_service.register(
+                conn,
+                user_id,
+                name=iname,
+                space_id=sid,
+                alias=it.alias,
+                category=it.category,
+                unit=it.unit,
+                qty=it.qty,
+                status=it.status or "present",
+                notes=it.notes,
+                attrs=[(str(k), str(v)) for k, v in (it.attrs or [])],
+            )
+            ci += 1
+    return cs, ci
+
+
+@router.post("/build-tree", response_model=dict, status_code=201)
+def build_tree(payload: BuildTreeBody, user_id: int = Depends(get_current_user)) -> dict:
+    with tx() as conn:
+        if payload.parent_id is not None:
+            service.require(conn, user_id, payload.parent_id)
+        spaces, items = _build_tree_nodes(conn, user_id, payload.parent_id, payload.nodes)
+    return ok({"created": {"spaces": spaces, "items": items}})
 
 
 @router.post("/ensure-path", response_model=dict, status_code=201)
