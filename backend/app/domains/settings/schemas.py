@@ -10,4 +10,7 @@ class SettingsUpdate(BaseModel):
     lang: Optional[str] = None
     token_enabled: Optional[bool] = None
     registration: Optional[str] = None  # 'auto' (self-signup) | 'manual' (admin-issued)
-    theme: Optional[str] = None  # 'apple' | 'flat'
+    theme: Optional[str] = None  # 'apple' | 'flat' | 'pixel'
+    llm_base_url: Optional[str] = None  # OpenAI-compatible endpoint ('' clears)
+    llm_model: Optional[str] = None
+    llm_api_key: Optional[str] = None  # encrypted at rest; never echoed back

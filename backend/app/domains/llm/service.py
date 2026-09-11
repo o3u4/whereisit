@@ -5,8 +5,6 @@ import json
 
 from openai import OpenAI
 
-from app.core import config
-
 _TREE_SYSTEM = """You are whereisit's catalog assistant. The user describes, and/or sends a
 photo of, a place (a desk, a closet, a shelf, a room) and we will build a folder
 tree beneath one root the user already chose. Respond with STRICT JSON only (no
@@ -23,20 +21,19 @@ Rules:
 - Keep it tidy: at most a few levels, no empty items lists."""
 
 
-def available() -> bool:
-    return bool(config.LLM_BASE_URL)
-
-
 def complete_json(
+    base_url: str,
+    api_key: str | None,
+    model: str,
     text: str | None,
     image_bytes: bytes | None = None,
     system: str = _TREE_SYSTEM,
     max_tokens: int = 1800,
 ) -> dict | None:
     """Call an OpenAI-compatible multimodal model and return the parsed JSON object."""
-    if not available():
+    if not base_url:
         return None
-    client = OpenAI(base_url=config.LLM_BASE_URL, api_key=config.LLM_API_KEY or "sk-local")
+    client = OpenAI(base_url=base_url, api_key=api_key or "sk-local")
     content: list[dict] = []
     if text and text.strip():
         content.append({"type": "text", "text": text.strip()})
@@ -51,7 +48,7 @@ def complete_json(
         return None
     try:
         resp = client.chat.completions.create(
-            model=config.LLM_MODEL,
+            model=model,
             messages=[
                 {"role": "system", "content": system},
                 {"role": "user", "content": content},

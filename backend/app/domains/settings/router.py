@@ -29,6 +29,9 @@ def update_settings(payload: SettingsUpdate, user_id: int = Depends(get_current_
                 token_enabled=payload.token_enabled,
                 registration=payload.registration,
                 theme=payload.theme,
+                llm_base_url=payload.llm_base_url,
+                llm_model=payload.llm_model,
+                llm_api_key=payload.llm_api_key,
             )
         )
 

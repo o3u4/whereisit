@@ -61,6 +61,9 @@ export interface SettingsDTO {
   is_admin: boolean;
   registration: 'auto' | 'manual';
   theme: 'apple' | 'flat' | 'pixel';
+  llm_configured: boolean;
+  llm_base_url: string;
+  llm_model: string;
 }
 
 export async function fetchSettings(): Promise<SettingsDTO> {
@@ -72,6 +75,9 @@ export async function saveSettings(patch: {
   token_enabled?: boolean;
   registration?: 'auto' | 'manual';
   theme?: 'apple' | 'flat' | 'pixel';
+  llm_base_url?: string;
+  llm_model?: string;
+  llm_api_key?: string; // '' clears; omitted keeps current
 }): Promise<SettingsDTO> {
   return request<SettingsDTO>('PUT', '/settings', patch);
 }

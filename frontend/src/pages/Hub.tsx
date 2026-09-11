@@ -317,12 +317,23 @@ function SettingsSheet({
   const [users, setUsers] = useState<api.AdminUser[]>([]);
   const [newName, setNewName] = useState('');
   const [justCreated, setJustCreated] = useState<api.CreatedUser | null>(null);
+  const [llmUrl, setLlmUrl] = useState('');
+  const [llmModel, setLlmModel] = useState('');
+  const [llmKey, setLlmKey] = useState('');
   const importRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     if (!open) return;
     setCurrentToken(null);
-    api.fetchSettings().then(setS).catch(() => setS(null));
+    api
+      .fetchSettings()
+      .then((d) => {
+        setS(d);
+        setLlmUrl(d.llm_base_url);
+        setLlmModel(d.llm_model);
+      })
+      .catch(() => setS(null));
+    setLlmKey('');
     api
       .fetchAccessToken()
       .then(({ token }) => setCurrentToken(token))
@@ -345,6 +356,28 @@ function SettingsSheet({
       setS(await api.saveSettings({ theme: th }));
     } catch {
       /* local theme still applies */
+    }
+  };
+
+  const saveLlm = async () => {
+    try {
+      const patch: Record<string, string> = { llm_base_url: llmUrl, llm_model: llmModel };
+      if (llmKey.trim()) patch.llm_api_key = llmKey; // blank = keep current, never clears
+      setS(await api.saveSettings(patch));
+      setLlmKey('');
+      toast(t('llm.saved'));
+    } catch {
+      toast(t('llm.saveFail'));
+    }
+  };
+
+  const clearLlmKey = async () => {
+    if (!window.confirm(t('llm.clearKeyQ'))) return;
+    try {
+      setS(await api.saveSettings({ llm_api_key: '' }));
+      toast(t('llm.saved'));
+    } catch {
+      toast(t('llm.saveFail'));
     }
   };
 
@@ -535,6 +568,25 @@ function SettingsSheet({
             { value: 'pixel', label: t('set.themePixel') },
           ]}
         />
+      </div>
+      <hr className="hr" />
+      <div className="col gap6">
+        <span className="field-label">{t('llm.cfg')}</span>
+        <p className="t-sm t-muted" style={{ margin: 0 }}>{t('llm.cfgHint')}</p>
+        <span className="t-xs t-mono" style={V({ color: s?.llm_configured ? 'var(--present)' : 'var(--faint)' })}>
+          {s?.llm_configured ? t('llm.on') : t('llm.off')}
+        </span>
+        <input className="field" value={llmUrl} placeholder={t('llm.baseUrlPh')} autoComplete="off" onChange={(e) => setLlmUrl(e.target.value)} />
+        <input className="field" value={llmModel} placeholder={t('llm.modelPh')} autoComplete="off" onChange={(e) => setLlmModel(e.target.value)} />
+        <input className="field" type="password" value={llmKey} placeholder={t('llm.apiKeyPh')} autoComplete="off" onChange={(e) => setLlmKey(e.target.value)} />
+        <div className="rowline gap8">
+          <button type="button" className="btn btn--soft btn--sm" onClick={() => void saveLlm()}>
+            {t('llm.save')}
+          </button>
+          <button type="button" className="btn btn--ghost btn--sm" style={{ color: 'var(--danger)' }} onClick={() => void clearLlmKey()}>
+            {t('llm.clearKey')}
+          </button>
+        </div>
       </div>
       <div>
         <span className="field-label">{t('set.lan')}</span>

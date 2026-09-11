@@ -8,6 +8,7 @@ from typing import Optional
 
 import sqlite3
 
+from app.core import config as cfg
 from app.core import secrets as crypto
 from app.core.config import PORT
 from app.core.errors import BadRequest
@@ -47,8 +48,22 @@ def theme(conn: sqlite3.Connection) -> str:
     return _get(conn, "theme", "apple")
 
 
+def _secret(conn: sqlite3.Connection, key: str) -> Optional[str]:
+    row = conn.execute("SELECT cipher_blob FROM secrets WHERE key = ?", (key,)).fetchone()
+    return crypto.try_decrypt_secret(row["cipher_blob"]) if row else None
+
+
+def llm_config(conn: sqlite3.Connection) -> dict:
+    """{base_url, api_key, model} — DB first (settings/secrets), env as fallback."""
+    base = _get(conn, "llm_base_url", "") or cfg.LLM_BASE_URL
+    model = _get(conn, "llm_model", "") or cfg.LLM_MODEL
+    key = _secret(conn, "llm_api_key") or cfg.LLM_API_KEY or None
+    return {"base_url": base, "api_key": key, "model": model}
+
+
 def get(conn: sqlite3.Connection, user_id: int) -> dict:
     u = _user(conn, user_id) or {"username": None, "is_admin": 0}
+    llm = llm_config(conn)
     return {
         "lang": _get(conn, "lang", "zh"),
         "token_enabled": token_enabled(conn),
@@ -57,10 +72,30 @@ def get(conn: sqlite3.Connection, user_id: int) -> dict:
         "is_admin": bool(u["is_admin"]),
         "registration": registration(conn),
         "theme": theme(conn),
+        "llm_configured": bool(llm["base_url"]),
+        "llm_base_url": llm["base_url"],
+        "llm_model": llm["model"],  # api key is never echoed
     }
 
 
-def put(conn: sqlite3.Connection, user_id: int, *, lang: Optional[str] = None, token_enabled: Optional[bool] = None, registration: Optional[str] = None, theme: Optional[str] = None) -> dict:
+def set_llm(conn: sqlite3.Connection, *, base_url: Optional[str] = None, model: Optional[str] = None, api_key: Optional[str] = None) -> None:
+    if base_url is not None:
+        _put(conn, "llm_base_url", base_url.strip())
+    if model is not None:
+        _put(conn, "llm_model", model.strip())
+    if api_key is not None:
+        ak = api_key.strip()
+        if ak:
+            conn.execute(
+                "INSERT INTO secrets (key, cipher_blob) VALUES ('llm_api_key', ?) "
+                "ON CONFLICT(key) DO UPDATE SET cipher_blob = excluded.cipher_blob, updated_at = datetime('now')",
+                (crypto.encrypt_secret(ak),),
+            )
+        else:
+            conn.execute("DELETE FROM secrets WHERE key = 'llm_api_key'")
+
+
+def put(conn: sqlite3.Connection, user_id: int, *, lang: Optional[str] = None, token_enabled: Optional[bool] = None, registration: Optional[str] = None, theme: Optional[str] = None, llm_base_url: Optional[str] = None, llm_model: Optional[str] = None, llm_api_key: Optional[str] = None) -> dict:
     if lang is not None:
         if lang not in ("zh", "en"):
             raise BadRequest("lang must be 'zh' or 'en'")
@@ -69,6 +104,8 @@ def put(conn: sqlite3.Connection, user_id: int, *, lang: Optional[str] = None, t
         if theme not in ("apple", "flat", "pixel"):
             raise BadRequest("theme must be 'apple', 'flat' or 'pixel'")
         _put(conn, "theme", theme)
+    if any(x is not None for x in (llm_base_url, llm_model, llm_api_key)):
+        set_llm(conn, base_url=llm_base_url, model=llm_model, api_key=llm_api_key)
     if token_enabled is not None:
         if token_enabled:
             if not has_token(conn, user_id):

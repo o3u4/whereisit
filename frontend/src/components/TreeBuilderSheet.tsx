@@ -8,6 +8,7 @@ import type { ChangeEvent } from 'react';
 import type { TreeNode, TreeItem } from '../api/client';
 import { recognizeTree, buildTree } from '../api/client';
 import { Sheet } from './ui';
+import { useToast } from '../stores/toast';
 import { useTr } from '../i18n';
 
 function TreeItemRow({
@@ -172,6 +173,7 @@ export function TreeBuilderSheet({
   onDone: () => void;
 }) {
   const { t } = useTr();
+  const toast = useToast((s) => s.push);
   const [text, setText] = useState('');
   const [img, setImg] = useState<string | null>(null); // raw base64 for API
   const [imgUrl, setImgUrl] = useState<string | null>(null); // dataURL preview
@@ -209,8 +211,8 @@ export function TreeBuilderSheet({
     try {
       const r = await recognizeTree(text.trim() || undefined, img || undefined);
       setNodes(r.nodes ?? []);
-    } catch {
-      /* error toast-less: caller sees nothing; keep simple */
+    } catch (err) {
+      toast(err instanceof Error ? err.message : t('llm.parseFail'));
     } finally {
       setBusy(false);
     }
