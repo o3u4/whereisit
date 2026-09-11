@@ -26,6 +26,13 @@ import { useTr } from '../i18n';
 
 const V = (o: Record<string, string | number>): CSSProperties => o as CSSProperties;
 
+const LLM_VENDORS = [
+  { id: 'deepseek', name: 'DeepSeek', url: 'https://api.deepseek.com/v1', model: 'deepseek-chat', tint: '#1b7ff0' },
+  { id: 'glm', name: 'GLM', url: 'https://open.bigmodel.cn/api/paas/v4', model: 'glm-4.6v-flash', tint: '#3b7cff' },
+  { id: 'chatgpt', name: 'ChatGPT', url: 'https://api.openai.com/v1', model: 'gpt-4o-mini', tint: '#10a37f' },
+  { id: 'claude', name: 'Claude', url: 'https://api.anthropic.com/v1', model: 'claude-3-5-sonnet-20241022', tint: '#d97757' },
+];
+
 function downloadText(filename: string, text: string) {
   const url = URL.createObjectURL(new Blob([text], { type: 'text/plain' }));
   const a = document.createElement('a');
@@ -573,6 +580,21 @@ function SettingsSheet({
       <div className="col gap6">
         <span className="field-label">{t('llm.cfg')}</span>
         <p className="t-sm t-muted" style={{ margin: 0 }}>{t('llm.cfgHint')}</p>
+        <div className="wrap-t gap6">
+          <span className="t-xs t-muted" style={{ alignSelf: 'center' }}>{t('llm.quick')}</span>
+          {LLM_VENDORS.map((v) => (
+            <button
+              key={v.id}
+              type="button"
+              className="chip chip--glass"
+              title={`${v.url} · ${v.model}`}
+              onClick={() => { setLlmUrl(v.url); setLlmModel(v.model); }}
+            >
+              <i className="cdot" style={{ background: v.tint }} />
+              {v.name}
+            </button>
+          ))}
+        </div>
         <span className="t-xs t-mono" style={V({ color: s?.llm_configured ? 'var(--present)' : 'var(--faint)' })}>
           {s?.llm_configured ? t('llm.on') : t('llm.off')}
         </span>
