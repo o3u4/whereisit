@@ -73,6 +73,7 @@ def get(conn: sqlite3.Connection, user_id: int) -> dict:
         "registration": registration(conn),
         "theme": theme(conn),
         "llm_configured": bool(llm["base_url"]),
+        "llm_has_key": _secret(conn, "llm_api_key") is not None,
         "llm_base_url": llm["base_url"],
         "llm_model": llm["model"],  # api key is never echoed
     }

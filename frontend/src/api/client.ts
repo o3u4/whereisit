@@ -62,6 +62,7 @@ export interface SettingsDTO {
   registration: 'auto' | 'manual';
   theme: 'apple' | 'flat' | 'pixel';
   llm_configured: boolean;
+  llm_has_key: boolean;
   llm_base_url: string;
   llm_model: string;
 }

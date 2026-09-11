@@ -33,10 +33,10 @@ def recognize(payload: RecognizeBody, user_id: int = Depends(get_current_user)) 
             image = base64.b64decode(payload.image_base64)
         except Exception:
             raise BadRequest("无效的图片 base64")
-    result = service.complete_json(
+    result, err = service.complete_json(
         base_url=llm["base_url"], api_key=llm["api_key"], model=llm["model"],
         text=payload.text, image_bytes=image,
     )
     if result is None:
-        raise BadRequest("模型未能返回有效结果（检查设置里的接口 / 模型）")
+        raise BadRequest(err or "模型未能返回有效结果（检查设置里的接口 / 模型）")
     return ok(result)

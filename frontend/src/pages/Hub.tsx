@@ -578,7 +578,14 @@ function SettingsSheet({
         </span>
         <input className="field" value={llmUrl} placeholder={t('llm.baseUrlPh')} autoComplete="off" onChange={(e) => setLlmUrl(e.target.value)} />
         <input className="field" value={llmModel} placeholder={t('llm.modelPh')} autoComplete="off" onChange={(e) => setLlmModel(e.target.value)} />
-        <input className="field" type="password" value={llmKey} placeholder={t('llm.apiKeyPh')} autoComplete="off" onChange={(e) => setLlmKey(e.target.value)} />
+        <input
+          className="field"
+          type="password"
+          value={llmKey}
+          placeholder={s?.llm_has_key ? '••••••••' : t('llm.apiKeyPh')}
+          autoComplete="off"
+          onChange={(e) => setLlmKey(e.target.value)}
+        />
         <div className="rowline gap8">
           <button type="button" className="btn btn--soft btn--sm" onClick={() => void saveLlm()}>
             {t('llm.save')}
