@@ -26,7 +26,7 @@ def _flush(client):
 
 
 def _tc(tid, name, args):
-    return SimpleNamespace(id=tid, type="function", function=SimpleNamespace(name=name, arguments=json.dumps(args)))
+    return SimpleNamespace(id=tid, type="function", function=SimpleNamespace(name=name, arguments=json.dumps(args, ensure_ascii=False)))
 
 
 def _msg(tool_calls=None, content=""):
@@ -55,98 +55,138 @@ def _setup(client):
     return sp
 
 
+def _plan_and_apply(client, monkeypatch, script):
+    import app.domains.llm.agent as ag
+
+    monkeypatch.setattr(ag, "OpenAI", lambda *a, **k: _FakeOpenAI(script))
+    p = client.post("/api/llm/agent/plan", json={"message": "x"})
+    assert p.status_code == 200, p.text
+    d = p.json()["data"]
+    assert d["steps"], d
+    r = client.post("/api/llm/agent/apply", json={"plan": d["steps"]})
+    assert r.status_code == 200, r.text
+    return d, r.json()["data"]
+
+
 def test_agent_unconfigured_is_503(client):
-    assert client.post("/api/llm/agent", json={"message": "x"}).status_code == 503
+    assert client.post("/api/llm/agent/plan", json={"message": "x"}).status_code == 503
 
 
-def test_agent_find_then_set_status(client, monkeypatch):
+def test_plan_reads_tree_then_submits(client, monkeypatch):
     import app.domains.llm.agent as ag
 
     _setup(client)
     script = [
-        _msg(tool_calls=[_tc("1", "find_item", {"name": "钥匙"}), _tc("2", "set_status", {"name": "钥匙", "status": "lent", "due": "3天后"})]),
-        _msg(content="已把钥匙记为借出"),
+        _msg(tool_calls=[_tc("1", "read_tree", {})]),
+        _msg(tool_calls=[_tc("2", "submit_plan", {"steps": [
+            {"tool": "update", "args": {"items": [{"name": "钥匙", "status": "lent", "notes": "3天后归还"}]}}]})],
+            content="把钥匙记为借出"),
     ]
     monkeypatch.setattr(ag, "OpenAI", lambda *a, **k: _FakeOpenAI(script))
-    r = client.post("/api/llm/agent", json={"message": "把抽屉里的钥匙记成被借走了，3天后还"})
+    p = client.post("/api/llm/agent/plan", json={"message": "把钥匙记成借出，3天后还"})
+    assert p.status_code == 200, p.text
+    d = p.json()["data"]
+    assert d["reply"] == "把钥匙记为借出"
+    assert d["steps"] == [{"tool": "update", "args": {"items": [{"name": "钥匙", "status": "lent", "notes": "3天后归还"}]}}]
+
+    # plan phase must not have touched data
+    kit = [i for i in client.get("/api/items").json()["data"] if i["name"] == "钥匙"][0]
+    assert kit["status"] == "present"
+
+
+def test_plan_rejects_bad_tool(client, monkeypatch):
+    import app.domains.llm.agent as ag
+
+    _setup(client)
+    script = [_msg(tool_calls=[_tc("1", "submit_plan", {"steps": [{"tool": "find_item", "args": {}}]})])]
+    monkeypatch.setattr(ag, "OpenAI", lambda *a, **k: _FakeOpenAI(script))
+    assert client.post("/api/llm/agent/plan", json={"message": "x"}).status_code == 400
+
+
+def test_apply_status_and_undo(client):
+    _setup(client)
+    plan = [{"tool": "update", "args": {"items": [{"name": "钥匙", "status": "lent", "notes": "3天后归还"}]}}]
+    r = client.post("/api/llm/agent/apply", json={"plan": plan})
     assert r.status_code == 200, r.text
     d = r.json()["data"]
-    assert d["reply"] == "已把钥匙记为借出"
-    tools = [s["tool"] for s in d["steps"]]
-    assert "find_item" in tools and "set_status" in tools
+    assert d["undo_id"] is not None
+    assert d["results"][0]["lines"][0]["ok"] is True
 
     kit = [i for i in client.get("/api/items").json()["data"] if i["name"] == "钥匙"][0]
     assert kit["status"] == "lent"
     assert "3天后" in (kit["notes"] or "")
 
-
-def test_agent_register_then_undo(client, monkeypatch):
-    import app.domains.llm.agent as ag
-
-    _setup(client)
-    script = [
-        _msg(tool_calls=[_tc("1", "register_item", {"name": "便签", "path": ["抽屉"], "qty": 2})]),
-        _msg(content="已登记便签"),
-    ]
-    monkeypatch.setattr(ag, "OpenAI", lambda *a, **k: _FakeOpenAI(script))
-    r = client.post("/api/llm/agent", json={"message": "在抽屉里记两本便签"})
-    assert r.status_code == 200, r.text
-    d = r.json()["data"]
-    assert d["undo_id"] is not None
-    assert "便签" in [i["name"] for i in client.get("/api/items").json()["data"]]
-
-    u = client.post("/api/llm/agent/undo", json={"undo_id": d["undo_id"]})
-    assert u.status_code == 200, u.text
-    assert "便签" not in [i["name"] for i in client.get("/api/items").json()["data"]]
-
-
-def test_agent_move_create_space_status_then_undo(client, monkeypatch):
-    import app.domains.llm.agent as ag
-
-    sp = _setup(client)
-    script = [
-        _msg(tool_calls=[_tc("1", "move_item", {"name": "钥匙", "to_path": ["柜子", "顶格"]})]),
-        _msg(tool_calls=[_tc("2", "set_status", {"name": "钥匙", "status": "lent", "due": "3天后"})]),
-        _msg(content="done"),
-    ]
-    monkeypatch.setattr(ag, "OpenAI", lambda *a, **k: _FakeOpenAI(script))
-    r = client.post("/api/llm/agent", json={"message": "把钥匙挪到柜子/顶格并记成借出，3天后还"})
-    assert r.status_code == 200, r.text
-    d = r.json()["data"]
-    assert d["undo_id"] is not None
-
-    kit = [i for i in client.get("/api/items").json()["data"] if i["name"] == "钥匙"][0]
-    assert kit["space_id"] != sp["id"]
-    assert kit["status"] == "lent"
-
     u = client.post("/api/llm/agent/undo", json={"undo_id": d["undo_id"]})
     assert u.status_code == 200, u.text
     kit = [i for i in client.get("/api/items").json()["data"] if i["name"] == "钥匙"][0]
-    assert kit["space_id"] == sp["id"]
     assert kit["status"] == "present"
     assert not (kit["notes"] or "")
-    # the freshly created path is gone again
-    names = {n["name"] for n in client.get("/api/spaces/tree").json()["data"]}
-    assert "柜子" not in names
 
 
-def test_agent_delete_then_undo(client, monkeypatch):
-    import app.domains.llm.agent as ag
-
+def test_apply_create_move_remove_then_undo(client):
     sp = _setup(client)
-    client.post("/api/items/register", json={"name": "剪刀", "space_id": sp["id"]}).json()
-    script = [
-        _msg(tool_calls=[_tc("1", "delete_item", {"name": "剪刀"})]),
-        _msg(content="已删除剪刀"),
+    plan = [
+        {"tool": "create", "args": {"spaces": [["柜子", "顶格"]],
+         "items": [{"name": "便签", "at": ["抽屉"], "qty": 2}]}},
+        {"tool": "update", "args": {"item_moves": [{"name": "钥匙", "to_path": ["柜子", "顶格"]}]}},
+        {"tool": "remove", "args": {"items": [{"name": "便签"}]}},
     ]
-    monkeypatch.setattr(ag, "OpenAI", lambda *a, **k: _FakeOpenAI(script))
-    r = client.post("/api/llm/agent", json={"message": "整理时把剪刀删了"})
+    r = client.post("/api/llm/agent/apply", json={"plan": plan})
     assert r.status_code == 200, r.text
     d = r.json()["data"]
-    assert d["undo_id"] is not None
-    assert "剪刀" not in [i["name"] for i in client.get("/api/items").json()["data"]]
+    items = client.get("/api/items").json()["data"]
+    kit = [i for i in items if i["name"] == "钥匙"][0]
+    assert kit["space_id"] != sp["id"]
+    assert "便签" not in [i["name"] for i in items]
+    tree_names = {n["name"] for n in client.get("/api/spaces/tree").json()["data"]}
+    assert "柜子" in tree_names
 
     u = client.post("/api/llm/agent/undo", json={"undo_id": d["undo_id"]})
     assert u.status_code == 200, u.text
-    assert u.json()["data"]["restored"]["lots"] >= 1
-    assert "剪刀" in [i["name"] for i in client.get("/api/items").json()["data"]]
+    items = client.get("/api/items").json()["data"]
+    kit = [i for i in items if i["name"] == "钥匙"][0]
+    assert kit["space_id"] == sp["id"]
+    assert "便签" not in [i["name"] for i in items]
+    tree_names = {n["name"] for n in client.get("/api/spaces/tree").json()["data"]}
+    assert "柜子" not in tree_names
+
+
+def _tree_names(nodes, acc=None):
+    acc = set() if acc is None else acc
+    for n in nodes:
+        acc.add(n["name"])
+        _tree_names(n.get("children") or [], acc)
+    return acc
+
+
+def test_apply_to_item_then_undo(client):
+    root = client.post("/api/spaces", json={"name": "桌面"}).json()["data"]
+    leaf = client.post("/api/spaces", json={"name": "笔筒", "parent_id": root["id"]}).json()["data"]
+    client.post("/api/items/register", json={"name": "铅笔", "space_id": leaf["id"], "qty": 3})
+
+    plan = [{"tool": "update", "args": {"to_items": [["桌面", "笔筒"]]}}]
+    r = client.post("/api/llm/agent/apply", json={"plan": plan})
+    assert r.status_code == 200, r.text
+    d = r.json()["data"]
+    assert "笔筒" not in _tree_names(client.get("/api/spaces/tree").json()["data"])
+    items = client.get("/api/items").json()["data"]
+    assert {i["name"] for i in items} == {"铅笔", "笔筒"}
+
+    u = client.post("/api/llm/agent/undo", json={"undo_id": d["undo_id"]})
+    assert u.status_code == 200, u.text
+    assert "笔筒" in _tree_names(client.get("/api/spaces/tree").json()["data"])
+    items = client.get("/api/items").json()["data"]
+    assert {i["name"] for i in items} == {"铅笔"}
+
+
+def test_apply_missing_path_reports_error(client):
+    _setup(client)
+    plan = [{"tool": "update", "args": {"item_moves": [{"name": "钥匙", "to_path": ["不存在", "路径"]}]}}]
+    r = client.post("/api/llm/agent/apply", json={"plan": plan})
+    assert r.status_code == 200, r.text
+    lines = r.json()["data"]["results"][0]["lines"]
+    assert lines[0]["ok"] is False
+    assert "不存在" in lines[0]["text"]
+    # item untouched
+    kit = [i for i in client.get("/api/items").json()["data"] if i["name"] == "钥匙"][0]
+    assert kit["space_id"]

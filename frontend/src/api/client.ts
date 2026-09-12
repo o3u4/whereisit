@@ -350,22 +350,40 @@ export async function buildTree(
   });
 }
 
-/* ---- LLM agent: natural-language operations with tool calls ----------------- */
-export interface AgentStep {
-  tool: string;
+/* ---- LLM agent: plan → approve → apply (four coarse tools, path-addressed) -- */
+export type PlanTool = 'create' | 'update' | 'remove';
+export interface PlanStep {
+  tool: PlanTool;
   args: Record<string, unknown>;
-  result: string;
+}
+export interface PlanLine {
+  ok: boolean;
+  text: string;
+}
+export interface ApplyResult {
+  index: number;
+  tool: PlanTool;
+  lines: PlanLine[];
 }
 
-export async function agentRun(
+/** ask the model to draft an execution plan (reads the tree, mutates nothing) */
+export async function agentPlan(
   message?: string,
   attachments?: { image_base64?: string }[],
-): Promise<{ steps: AgentStep[]; reply: string; undo_id: number | null }> {
-  return request<{ steps: AgentStep[]; reply: string; undo_id: number | null }>(
-    'POST',
-    '/llm/agent',
-    { message, attachments },
-  );
+): Promise<{ steps: PlanStep[]; reply: string }> {
+  return request<{ steps: PlanStep[]; reply: string }>('POST', '/llm/agent/plan', {
+    message,
+    attachments,
+  });
+}
+
+/** run an approved plan on the server (sequential, one transaction, undoable) */
+export async function agentApply(
+  plan: PlanStep[],
+): Promise<{ results: ApplyResult[]; undo_id: number | null }> {
+  return request<{ results: ApplyResult[]; undo_id: number | null }>('POST', '/llm/agent/apply', {
+    plan,
+  });
 }
 
 export async function agentUndo(undoId: number): Promise<{ restored: Record<string, number> }> {

@@ -9,8 +9,8 @@ import { Seg, Kbd, EmptyState, StatusBadge } from './ui';
 import { catMeta } from '../lib/meta';
 import { dirById, frequentItemNames, pathNames } from '../lib/tree';
 import type { Item } from '../lib/types';
-import type { AgentStep, SearchResult } from '../api/client';
-import { agentRun, agentUndo } from '../api/client';
+import type { ApplyResult, PlanStep, PlanTool, SearchResult } from '../api/client';
+import { agentApply, agentPlan, agentUndo } from '../api/client';
 import type { SearchModeDTO } from '../api/types';
 import { useCatalog } from '../stores/catalog';
 import { useOverlay } from '../stores/overlay';
@@ -20,6 +20,52 @@ import { useTr } from '../i18n';
 const V = (o: Record<string, string | number>): CSSProperties => o as CSSProperties;
 
 type Row = { kind: 'item'; slug: string } | { kind: 'space'; slug: string };
+
+/* ---- agent plan rendering helpers ---------------------------------------- */
+const pathStr = (p: unknown) => '/' + (Array.isArray(p) ? (p as string[]) : []).join('/');
+const TOOL_LABEL: Record<PlanTool, string> = {
+  create: 'ai.tool.create',
+  update: 'ai.tool.update',
+  remove: 'ai.tool.remove',
+};
+const TOOL_COLOR: Record<PlanTool, string> = {
+  create: 'var(--present)',
+  update: 'var(--accent)',
+  remove: 'var(--danger)',
+};
+
+/** client-side preview of what one plan step will do (server results replace it) */
+function planLines(step: PlanStep, tr: (k: string, v?: Record<string, string | number>) => string): string[] {
+  const a = step.args as Record<string, unknown>;
+  const arr = <T,>(v: unknown): T[] => (Array.isArray(v) ? (v as T[]) : []);
+  if (step.tool === 'create') {
+    return [
+      ...arr<string[]>(a.spaces).map((p) => tr('ai.ln.space', { p: pathStr(p) })),
+      ...arr<{ name: string; at: string[]; qty?: number }>(a.items).map(
+        (i) => tr('ai.ln.item', { n: i.name, q: i.qty ?? 1, p: pathStr(i.at) }),
+      ),
+    ];
+  }
+  if (step.tool === 'update') {
+    return [
+      ...arr<{ from_path: string[]; to_path: string[] }>(a.moves).map(
+        (m) => tr('ai.ln.move', { from: pathStr(m.from_path), to: pathStr(m.to_path) }),
+      ),
+      ...arr<{ name: string; to_path: string[] }>(a.item_moves).map(
+        (m) => tr('ai.ln.moveN', { n: m.name, to: pathStr(m.to_path) }),
+      ),
+      ...arr<{ path: string[]; name?: string }>(a.spaces).map(
+        (s) => tr('ai.ln.spacePatch', { p: pathStr(s.path) }),
+      ),
+      ...arr<{ name: string }>(a.items).map((i) => tr('ai.ln.itemPatch', { n: i.name })),
+      ...arr<string[]>(a.to_items).map((p) => tr('ai.ln.toItem', { p: pathStr(p) })),
+    ];
+  }
+  return [
+    ...arr<string[]>(a.spaces).map((p) => tr('ai.ln.space', { p: pathStr(p) })),
+    ...arr<{ name: string }>(a.items).map((i) => tr('ai.ln.itemN', { n: i.name })),
+  ];
+}
 
 
 export function Spotlight() {
@@ -44,11 +90,15 @@ export function Spotlight() {
   const [aMsg, setAMsg] = useState('');
   const [aImgB, setAImgB] = useState<string | null>(null); // base64 for API
   const [aImgU, setAImgU] = useState<string | null>(null); // dataURL preview
-  const [aSteps, setASteps] = useState<AgentStep[]>([]);
+  type APhase = 'idle' | 'planning' | 'await' | 'applying' | 'done';
+  const [aPhase, setAPhase] = useState<APhase>('idle');
+  const [aPlan, setAPlan] = useState<PlanStep[]>([]);
   const [aReply, setAReply] = useState('');
+  const [aResults, setAResults] = useState<ApplyResult[] | null>(null);
   const [aUndoId, setAUndoId] = useState<number | null>(null);
-  const [aBusy, setABusy] = useState(false);
   const aFile = useRef<HTMLInputElement>(null);
+
+  const aBusy = aPhase === 'planning' || aPhase === 'applying';
 
   useEffect(() => {
     if (spot) {
@@ -227,10 +277,25 @@ export function Spotlight() {
     );
   }
 
+  const aReset = () => {
+    setAPhase('idle');
+    setAPlan([]);
+    setAResults(null);
+    setAUndoId(null);
+    setAReply('');
+  };
+  const aResetAll = () => {
+    aReset();
+    setAMsg('');
+    setAImgB(null);
+    setAImgU(null);
+  };
+
   const pickAgentImg = (e: ChangeEvent<HTMLInputElement>) => {
     const f = e.target.files?.[0];
     e.target.value = '';
     if (!f) return;
+    aReset();
     const rd = new FileReader();
     rd.onload = () => {
       const d = String(rd.result);
@@ -240,22 +305,37 @@ export function Spotlight() {
     rd.readAsDataURL(f);
   };
 
-  const runAgent = async () => {
+  const runAgentPlan = async () => {
     if ((!aMsg.trim() && !aImgB) || aBusy) return;
-    setABusy(true);
-    setAReply('');
-    setASteps([]);
-    setAUndoId(null);
+    aReset();
+    setAPhase('planning');
     try {
-      const r = await agentRun(aMsg.trim() || undefined, aImgB ? [{ image_base64: aImgB }] : undefined);
-      setASteps(r.steps);
+      const r = await agentPlan(aMsg.trim() || undefined, aImgB ? [{ image_base64: aImgB }] : undefined);
       setAReply(r.reply);
+      if (r.steps.length) {
+        setAPlan(r.steps);
+        setAPhase('await');
+      } else {
+        setAPhase('idle');
+      }
+    } catch (err) {
+      setAReply(err instanceof Error ? err.message : String(err));
+      setAPhase('idle');
+    }
+  };
+
+  const confirmApply = async () => {
+    if (aPhase !== 'await') return;
+    setAPhase('applying');
+    try {
+      const r = await agentApply(aPlan);
+      setAResults(r.results);
       setAUndoId(r.undo_id);
+      setAPhase('done');
       void useCatalog.getState().load();
     } catch (err) {
       setAReply(err instanceof Error ? err.message : String(err));
-    } finally {
-      setABusy(false);
+      setAPhase('await');
     }
   };
 
@@ -263,11 +343,11 @@ export function Spotlight() {
     if (aUndoId == null) return;
     try {
       await agentUndo(aUndoId);
-      setAUndoId(null);
       void useCatalog.getState().load();
     } catch {
       /* ignore */
     }
+    aResetAll();
   };
 
   return (
@@ -295,46 +375,91 @@ export function Spotlight() {
             <textarea
               className="field"
               value={aMsg}
-              onChange={(e) => setAMsg(e.target.value)}
+              onChange={(e) => {
+                setAMsg(e.target.value);
+                if (aPhase === 'await' || aPhase === 'done') aReset();
+              }}
               placeholder={t('ai.ph')}
               rows={3}
+              disabled={aBusy}
               style={{ resize: 'vertical', minHeight: 64, padding: '10px 14px' }}
             />
             <div className="rowline gap8">
               {aImgU ? (
                 <img src={aImgU} alt="" style={{ width: 52, height: 40, objectFit: 'cover', borderRadius: 8, border: '1px solid var(--border)' }} />
               ) : null}
-              <button type="button" className="btn btn--soft btn--sm" onClick={() => aFile.current?.click()}>
+              <button type="button" className="btn btn--soft btn--sm" disabled={aBusy} onClick={() => aFile.current?.click()}>
                 {t('ai.attach')}
               </button>
               {aImgU ? (
-                <button type="button" className="btn btn--ghost btn--sm" onClick={() => { setAImgB(null); setAImgU(null); }}>
+                <button type="button" className="btn btn--ghost btn--sm" disabled={aBusy} onClick={() => { setAImgB(null); setAImgU(null); aReset(); }}>
                   {t('ai.remove')}
                 </button>
               ) : null}
               <input ref={aFile} type="file" accept="image/*" style={{ display: 'none' }} onChange={pickAgentImg} />
               <span className="grow" />
-              <button type="button" className="btn btn--primary" disabled={(!aMsg.trim() && !aImgB) || aBusy} onClick={() => void runAgent()}>
-                {aBusy ? t('ai.busy') : t('ai.send')}
+              <button type="button" className="btn btn--primary" disabled={(!aMsg.trim() && !aImgB) || aBusy} onClick={() => void runAgentPlan()}>
+                {aPhase === 'planning' ? t('ai.planning') : t('ai.send')}
               </button>
             </div>
-            {aSteps.length ? (
-              <div className="col gap4" style={{ maxHeight: '40vh', overflow: 'auto' }}>
-                {aSteps.map((s, i) => (
-                  <div key={i} className="rowline gap6 t-sm">
-                    <span style={{ color: 'var(--present)' }}>✓</span>
-                    <span className="t-mono t-xs" style={{ color: 'var(--faint)' }}>{s.tool}</span>
-                    <span className="ellip">{s.result}</span>
+
+            {aPlan.length ? (
+              <div className="col gap6" style={{ maxHeight: '42vh', overflow: 'auto' }}>
+                <div className="rowline gap6" style={{ alignItems: 'baseline' }}>
+                  <span className="t-sm" style={{ fontWeight: 600 }}>{t('ai.planTitle')}</span>
+                  {aPlan.length > 1 ? <span className="t-xs t-faint">{fmt('ai.orderHint', { n: aPlan.length })}</span> : null}
+                </div>
+                {aPlan.map((s, i) => {
+                  const res = aResults?.find((r) => r.index === i);
+                  const lines = res
+                    ? res.lines
+                    : planLines(s, (k, v) => fmt(k, v ?? {})).map((x) => ({ ok: true, text: x }));
+                  return (
+                    <details key={i}>
+                      <summary className="rowline gap6" style={{ cursor: 'pointer', alignItems: 'center' }}>
+                        <span className="t-mono t-xs" style={{ color: 'var(--faint)', width: 16, flex: 'none' }}>{i + 1}.</span>
+                        <span
+                          className="tag"
+                          style={V({ color: TOOL_COLOR[s.tool], borderColor: TOOL_COLOR[s.tool], flex: 'none' })}
+                        >
+                          {t(TOOL_LABEL[s.tool])}
+                        </span>
+                        <span className="t-sm ellip">{lines[0]?.text ?? '—'}</span>
+                        <span className="grow" />
+                        <span className="t-xs t-faint" style={{ flex: 'none' }}>{fmt('ai.stepCount', { n: lines.length })}</span>
+                      </summary>
+                      <div className="col gap4" style={{ padding: '4px 0 4px 24px' }}>
+                        {lines.map((l, j) => (
+                          <div key={j} className="rowline gap6 t-sm">
+                            <span style={{ color: res ? (l.ok ? 'var(--present)' : 'var(--danger)') : 'var(--faint)', flex: 'none' }}>
+                              {res ? (l.ok ? '✓' : '✗') : '·'}
+                            </span>
+                            <span>{l.text}</span>
+                          </div>
+                        ))}
+                      </div>
+                    </details>
+                  );
+                })}
+                {aPhase === 'await' ? (
+                  <div className="rowline gap8">
+                    <button type="button" className="btn btn--primary btn--sm" onClick={() => void confirmApply()}>
+                      {t('ai.approve')}
+                    </button>
+                    <button type="button" className="btn btn--ghost btn--sm" onClick={aResetAll}>
+                      {t('ai.cancelPlan')}
+                    </button>
                   </div>
-                ))}
-                {aUndoId != null ? (
+                ) : null}
+                {aPhase === 'applying' ? <p className="t-sm t-faint" style={{ margin: 0 }}>{t('ai.applying')}</p> : null}
+                {aPhase === 'done' && aUndoId != null ? (
                   <button type="button" className="btn btn--ghost btn--sm" onClick={() => void doAgentUndo()}>
                     {t('ai.undo')}
                   </button>
                 ) : null}
               </div>
             ) : null}
-            {aReply ? <p className="t-sm" style={{ margin: 0, whiteSpace: 'pre-wrap' }}>{aReply}</p> : null}
+            {aReply ? <p className="t-sm t-faint" style={{ margin: 0, whiteSpace: 'pre-wrap' }}>{aReply}</p> : null}
           </div>
         ) : (
           <>

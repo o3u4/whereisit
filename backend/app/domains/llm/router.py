@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import base64
 import json
-from typing import Optional
 
 from fastapi import APIRouter, Depends
 from pydantic import BaseModel
@@ -19,13 +18,17 @@ router = APIRouter(prefix="/api/llm", tags=["llm"])
 
 
 class RecognizeBody(BaseModel):
-    text: Optional[str] = None
-    image_base64: Optional[str] = None  # base64 without the data: prefix
+    text: str | None = None
+    image_base64: str | None = None  # base64 without the data: prefix
 
 
-class AgentBody(BaseModel):
-    message: Optional[str] = None
-    attachments: Optional[list[dict]] = None
+class PlanBody(BaseModel):
+    message: str | None = None
+    attachments: list[dict] | None = None
+
+
+class ApplyBody(BaseModel):
+    plan: list[dict]
 
 
 class UndoBody(BaseModel):
@@ -53,16 +56,23 @@ def recognize(payload: RecognizeBody, user_id: int = Depends(get_current_user)) 
     return ok(result)
 
 
-@router.post("/agent", response_model=dict)
-def agent_run(payload: AgentBody, user_id: int = Depends(get_current_user)) -> dict:
+@router.post("/agent/plan", response_model=dict)
+def agent_plan(payload: PlanBody, user_id: int = Depends(get_current_user)) -> dict:
     with read() as conn:
         llm = settings_service.llm_config(conn)
     if not llm["base_url"]:
         raise ServiceUnavailable("LLM 未配置，请在设置里填接口地址")
-    steps, reply, undo_id = agent.run_agent(
+    steps, reply = agent.plan_agent(
         llm["base_url"], llm["api_key"], llm["model"], user_id, payload.message, payload.attachments
     )
-    return ok({"steps": steps, "reply": reply, "undo_id": undo_id})
+    return ok({"steps": agent.validate_plan(steps), "reply": reply})
+
+
+@router.post("/agent/apply", response_model=dict)
+def agent_apply(payload: ApplyBody, user_id: int = Depends(get_current_user)) -> dict:
+    plan = agent.validate_plan(payload.plan)
+    results, undo_id = agent.apply_plan(user_id, plan)
+    return ok({"results": results, "undo_id": undo_id})
 
 
 @router.post("/agent/undo", response_model=dict)
