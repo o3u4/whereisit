@@ -190,3 +190,105 @@ def test_apply_missing_path_reports_error(client):
     # item untouched
     kit = [i for i in client.get("/api/items").json()["data"] if i["name"] == "钥匙"][0]
     assert kit["space_id"]
+
+
+def test_apply_category_ops_then_undo(client):
+    plan = [
+        {"tool": "category", "args": {"add": ["电子", "数码"]}},
+        {"tool": "create", "args": {"items": [
+            {"name": "台灯", "at": ["桌面"], "category": "电子", "attrs": [["颜色", "白"]]}]}},
+        {"tool": "category", "args": {"merge": [{"source": "数码", "into": "电子"}]}},
+    ]
+    r = client.post("/api/llm/agent/apply", json={"plan": plan})
+    assert r.status_code == 200, r.text
+    d = r.json()["data"]
+    assert {c["name"] for c in client.get("/api/categories").json()["data"]} == {"电子"}
+    assert "数码" not in {c["name"] for c in client.get("/api/categories").json()["data"]}
+
+    u = client.post("/api/llm/agent/undo", json={"undo_id": d["undo_id"]})
+    assert u.status_code == 200, u.text
+    assert client.get("/api/categories").json()["data"] == []
+    assert client.get("/api/items").json()["data"] == []
+
+
+def test_apply_merge_defs_then_undo(client):
+    sp = client.post("/api/spaces", json={"name": "桌面"}).json()["data"]
+    client.post("/api/items/register", json={"name": "钥匙", "space_id": sp["id"]})
+    client.post("/api/items/register", json={"name": "锁匙", "space_id": sp["id"]})
+    plan = [{"tool": "merge_defs", "args": {"target": "钥匙", "sources": ["锁匙"]}}]
+    r = client.post("/api/llm/agent/apply", json={"plan": plan})
+    assert r.status_code == 200, r.text
+    d = r.json()["data"]
+    names = {i["name"] for i in client.get("/api/items").json()["data"]}
+    assert names == {"钥匙"}
+
+    u = client.post("/api/llm/agent/undo", json={"undo_id": d["undo_id"]})
+    assert u.status_code == 200, u.text
+    names = {i["name"] for i in client.get("/api/items").json()["data"]}
+    assert names == {"钥匙", "锁匙"}
+
+
+def test_apply_reorder_then_undo(client):
+    root = client.post("/api/spaces", json={"name": "桌面"}).json()["data"]
+    a = client.post("/api/spaces", json={"name": "甲", "parent_id": root["id"]}).json()["data"]
+    b = client.post("/api/spaces", json={"name": "乙", "parent_id": root["id"]}).json()["data"]
+    order = lambda: [n["name"] for n in client.get(f"/api/spaces/tree?root_id={root['id']}").json()["data"][0]["children"]]
+    assert order() == ["甲", "乙"]
+
+    plan = [{"tool": "reorder", "args": {"path": ["桌面"], "spaces": ["乙", "甲"]}}]
+    r = client.post("/api/llm/agent/apply", json={"plan": plan})
+    assert r.status_code == 200, r.text
+    d = r.json()["data"]
+    assert order() == ["乙", "甲"]
+
+    u = client.post("/api/llm/agent/undo", json={"undo_id": d["undo_id"]})
+    assert u.status_code == 200, u.text
+    assert order() == ["甲", "乙"]
+
+
+def test_apply_status_synonyms_and_scene_group(client):
+    plan = [
+        {"tool": "create", "args": {"spaces": [{"path": ["卧室"], "type_tag": "room", "group": "家"}]}},
+        {"tool": "create", "args": {"items": [{"name": "蓝牙耳机", "at": ["卧室"], "status": "借出"}]}},
+        {"tool": "update", "args": {"items": [{"name": "蓝牙耳机", "status": "用完"}]}},
+    ]
+    r = client.post("/api/llm/agent/apply", json={"plan": plan})
+    assert r.status_code == 200, r.text
+    for res in r.json()["data"]["results"]:
+        assert res["lines"][0]["ok"] is True, res["lines"]
+
+    kit = [i for i in client.get("/api/items").json()["data"] if i["name"] == "蓝牙耳机"][0]
+    assert kit["status"] == "consumed"
+
+    tree = client.get("/api/spaces/tree").json()["data"]
+    room = [n for n in tree if n["name"] == "卧室"][0]
+    assert room["type_tag"] == "room"
+    assert "家" in room["layout_json"]
+
+
+def test_apply_bad_status_reports_error(client):
+    _setup(client)
+    plan = [{"tool": "update", "args": {"items": [{"name": "钥匙", "status": "已丢"}]}}]
+    r = client.post("/api/llm/agent/apply", json={"plan": plan})
+    assert r.status_code == 200, r.text
+    lines = r.json()["data"]["results"][0]["lines"]
+    assert lines[0]["ok"] is False
+    assert "无效" in lines[0]["text"]
+
+
+def test_apply_set_image_then_undo(client):
+    sp = _setup(client)
+    plan = [{"tool": "set_image", "args": {"items": [{"name": "钥匙"}]}}]
+    r = client.post("/api/llm/agent/apply", json={"plan": plan, "attachments": [{"image_base64": "QUFBQQ=="}]})
+    assert r.status_code == 200, r.text
+    d = r.json()["data"]
+    assert d["results"][0]["lines"][0]["ok"] is True
+    assert d["undo_id"] is not None
+
+    kit = [i for i in client.get("/api/items").json()["data"] if i["name"] == "钥匙"][0]
+    res = client.get(f"/api/media?entity_type=lot&entity_id={kit['lot_id']}")
+    assert res.status_code == 200
+
+    client.post("/api/llm/agent/undo", json={"undo_id": d["undo_id"]})
+    res = client.get(f"/api/media?entity_type=lot&entity_id={kit['lot_id']}")
+    assert res.status_code == 404

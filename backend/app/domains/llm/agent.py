@@ -20,6 +20,33 @@ from app.domains.spaces import service as spaces_service
 
 _ALIAS_SPLIT = re.compile(r"[，,;；、|]+")
 
+_STATUS_SYNONYMS = {
+    "present": "present", "在库": "present", "有": "present",
+    "lent": "lent", "借出": "lent", "出借": "lent", "外借": "lent",
+    "consumed": "consumed", "用完": "consumed", "消耗": "consumed", "没了": "consumed",
+}
+
+
+def _coerce_status(v) -> str:
+    if v is None:
+        return "present"
+    s = _STATUS_SYNONYMS.get(str(v).strip().lower())
+    if not s:
+        raise ValueError(f"状态「{v}」无效，应为 在库/借出/用完")
+    return s
+
+
+def _guess_type(name: str) -> str:
+    n = name.strip()
+    for kw, t in [("衣柜", "wardrobe"), ("储物柜", "wardrobe"), ("鞋柜", "wardrobe"),
+                  ("书桌", "desk"), ("办公桌", "desk"), ("桌面", "desk"),
+                  ("抽屉", "drawer"), ("货架", "shelf"), ("置物架", "shelf"),
+                  ("隔板", "shelf"), ("架", "shelf"), ("箱", "box"),
+                  ("收纳", "box"), ("盒", "box")]:
+        if kw in n:
+            return t
+    return "room"  # 卧室/书房/办公室这类场景默认房间，而非收纳盒
+
 SYSTEM = """You are whereisit's catalog assistant. The user asks you to organize their
 item catalog. You NEVER touch data directly: you may call read_tree / find_item /
 list_categories to inspect it, then submit_plan to propose an execution plan.
@@ -33,12 +60,15 @@ Rules:
   merge_defs / set_image / reorder. One step's arrays are one batch (order
   within an array doesn't matter); steps run strictly 1→N.
 - create — new subspaces and/or items (items may carry qty/unit/category/notes/
-  status/alias/attrs). update — move subtree or item, patch space (name/type),
-  patch item (new_name/qty/status/notes/category/unit/alias/attrs_set/attrs_del),
-  convert a space into an item. remove — delete spaces/items.
+  status/alias/attrs). update — move subtree or item, patch space (name/type/
+  group), patch item (new_name/qty/status/notes/category/unit/alias/attrs_set/
+  attrs_del), convert a space into an item. remove — delete spaces/items.
 - category — add / rename / merge / remove categories. merge_defs — collapse
   duplicate item types into one. set_image — attach the uploaded photo as a
   preview (one entity). reorder — order the sub-spaces under a path.
+- Item status must be one of: present (在库) / lent (借出) / consumed (用完).
+- Space type_tag ∈ room/wardrobe/desk/drawer/shelf/box/generic. A top-level scene
+  can also carry `group` (家 or 公司), shown as the corner tag on its card.
 - Order steps by dependency: create before moves into created paths; moves
   before removing emptied containers; removals last. Batch aggressively; keep
   the step count as small as ordering allows. read tools never appear in a plan.
@@ -64,7 +94,8 @@ class ItemCreate(BaseModel):
     attrs: Optional[list[list[str]]] = None
 
 class CreateArgs(BaseModel):
-    spaces: Optional[list[list[str]]] = None
+    # spaces 可以是字符串路径，也可以是 {path, type_tag?, group?} 对象
+    spaces: Optional[list] = None
     items: Optional[list[ItemCreate]] = None
 
 class MoveArgs(BaseModel):
@@ -80,6 +111,7 @@ class SpacePatch(BaseModel):
     path: list[str]
     name: Optional[str] = None
     type_tag: Optional[str] = None
+    group: Optional[str] = None  # 归属 家/公司（layout.group）
 
 class ItemPatch(BaseModel):
     name: str
@@ -376,13 +408,14 @@ def _lot_patch_op(conn, user_id: int, lot_id: int) -> dict | None:
 
 def _space_patch_op(conn, user_id: int, space_id: int) -> dict | None:
     r = conn.execute(
-        "SELECT name, type_tag, parent_id FROM spaces WHERE id = ? AND owner_id = ?",
+        "SELECT name, type_tag, parent_id, layout_json FROM spaces WHERE id = ? AND owner_id = ?",
         (space_id, user_id),
     ).fetchone()
     if not r:
         return None
     return {"op": "patch_space", "space_id": space_id,
-            "old": {"name": r["name"], "type_tag": r["type_tag"], "parent_id": r["parent_id"]}}
+            "old": {"name": r["name"], "type_tag": r["type_tag"],
+                    "parent_id": r["parent_id"], "layout_json": r["layout_json"]}}
 
 
 def _def_patch_op(conn, user_id: int, def_id: int) -> dict | None:
@@ -421,11 +454,14 @@ def _image_op(conn, user_id: int, entity_type: str, entity_id: int) -> dict:
             "bytes_b64": _b64_of(user_id, row["file_path"])}
 
 
-def _created_path(conn, user_id: int, path, ctx: dict) -> int:
-    """mkdir -p a path; every newly created space is recorded as a reverse op."""
+def _created_path(conn, user_id: int, path, ctx: dict, type_tag=None, group=None) -> int:
+    """mkdir -p a path; every newly created space is recorded as a reverse op.
+    Leaf gets `type_tag` (falling back to a name guess for top-level scenes) and
+    `group` (家/公司, stored on layout_json for the scene-card corner)."""
     parent: Optional[int] = None
     leaf: Optional[int] = None
-    for name in _segs(path):
+    segs = _segs(path)
+    for i, name in enumerate(segs):
         n = norm_text(name)
         if not n:
             raise ValueError("路径包含空段")
@@ -442,15 +478,31 @@ def _created_path(conn, user_id: int, path, ctx: dict) -> int:
         if row is not None:
             node_id = int(row["id"])
         else:
+            if i == len(segs) - 1 and type_tag:
+                tt = type_tag
+            elif parent is None:
+                tt = _guess_type(name)
+            else:
+                tt = "generic"
             cur = conn.execute(
                 "INSERT INTO spaces (parent_id, name, name_norm, ord, type_tag, owner_id) "
-                "VALUES (?, ?, ?, 0, 'generic', ?)",
-                (parent, name, n, user_id),
+                "VALUES (?, ?, ?, 0, ?, ?)",
+                (parent, name, n, tt, user_id),
             )
             node_id = int(cur.lastrowid)
             ctx["undo"].append({"ops": [{"op": "remove_space", "space_id": node_id}]})
         parent = node_id
         leaf = node_id
+    if group and leaf is not None:
+        cur = conn.execute(
+            "SELECT layout_json FROM spaces WHERE id = ? AND owner_id = ?", (leaf, user_id)
+        ).fetchone()
+        lay = json.loads(cur["layout_json"] or "{}") if cur and cur["layout_json"] else {}
+        lay["group"] = group
+        conn.execute(
+            "UPDATE spaces SET layout_json = ?, updated_at = datetime('now') WHERE id = ? AND owner_id = ?",
+            (json.dumps(lay, ensure_ascii=False), leaf, user_id),
+        )
     return int(leaf)
 
 
@@ -538,9 +590,9 @@ def _apply_op(conn, user_id: int, op: dict, counts: dict) -> None:
     elif kind == "patch_space":
         old = op["old"]
         conn.execute(
-            "UPDATE spaces SET name = ?, name_norm = ?, type_tag = ?, parent_id = ?, updated_at = datetime('now') "
+            "UPDATE spaces SET name = ?, name_norm = ?, type_tag = ?, parent_id = ?, layout_json = ?, updated_at = datetime('now') "
             "WHERE id = ? AND owner_id = ?",
-            (old["name"], norm_text(old["name"]), old["type_tag"], old["parent_id"], op["space_id"], user_id),
+            (old["name"], norm_text(old["name"]), old["type_tag"], old["parent_id"], old["layout_json"], op["space_id"], user_id),
         )
         counts["spaces"] += 1
     elif kind == "patch_def":
@@ -675,17 +727,26 @@ def _persist_undo(user_id: int, ctx: dict) -> int | None:
 # ------------------------------------------------------------------ executors ----
 def _exec_create(conn, u: int, a: CreateArgs, ctx: dict) -> list[dict]:
     lines: list[dict] = []
-    for path in a.spaces or []:
+    for sp in a.spaces or []:
+        if isinstance(sp, list):
+            path, tt, grp = sp, None, None
+        elif isinstance(sp, dict):
+            path = sp.get("path") or []
+            tt = sp.get("type_tag")
+            grp = sp.get("group")
+        else:
+            continue
         try:
-            _created_path(conn, u, path, ctx)
-            lines.append({"ok": True, "text": f"已建空间 {_p(path)}"})
+            _created_path(conn, u, path, ctx, type_tag=tt, group=grp)
+            extra = " · ".join(x for x in (tt, f"归属:{grp}" if grp else None) if x)
+            lines.append({"ok": True, "text": f"已建空间 {_p(path)}{(' · ' + extra) if extra else ''}"})
         except Exception as e:  # noqa: BLE001
             lines.append({"ok": False, "text": f"建空间 {_p(path)}：{e}"})
     for it in a.items or []:
         try:
             sid = _created_path(conn, u, it.at, ctx)
             _register_with_undo(conn, u, it.name.strip(), sid, max(1, it.qty), ctx,
-                                unit=it.unit, notes=it.notes, status=it.status or "present",
+                                unit=it.unit, notes=it.notes, status=_coerce_status(it.status),
                                 category=it.category, alias=it.alias,
                                 attrs=[list(x) for x in (it.attrs or [])])
             lines.append({"ok": True, "text": f"已登记 {it.name} ×{it.qty} @ {_p(it.at)}"})
@@ -735,7 +796,14 @@ def _exec_update(conn, u: int, a: UpdateArgs, ctx: dict) -> list[dict]:
             if op:
                 ctx["undo"].append({"ops": [op]})
             spaces_service.update(conn, u, sid, name=sp.name, type_tag=sp.type_tag)
-            parts = [x for x in (sp.name, sp.type_tag) if x]
+            if sp.group:
+                cur = conn.execute(
+                    "SELECT layout_json FROM spaces WHERE id = ? AND owner_id = ?", (sid, u)
+                ).fetchone()
+                lay = json.loads(cur["layout_json"] or "{}") if cur and cur["layout_json"] else {}
+                lay["group"] = sp.group
+                spaces_service.update(conn, u, sid, layout_json=json.dumps(lay, ensure_ascii=False))
+            parts = [x for x in (sp.name, sp.type_tag, f"归属:{sp.group}" if sp.group else None) if x]
             lines.append({"ok": True, "text": f"已改 {_p(sp.path)} → {'/'.join(parts)}"})
         except Exception as e:  # noqa: BLE001
             lines.append({"ok": False, "text": f"改 {_p(sp.path)}：{e}"})
@@ -777,8 +845,9 @@ def _exec_update(conn, u: int, a: UpdateArgs, ctx: dict) -> list[dict]:
                     items_service.del_attr(conn, u, def_id=lot["def_id"], key=k)
             if ops:
                 ctx["undo"].append({"ops": ops})
+            status = _coerce_status(it.status) if it.status is not None else None
             fields = {k: v for k, v in {
-                "qty": it.qty, "status": it.status, "notes": it.notes}.items() if v is not None}
+                "qty": it.qty, "status": status, "notes": it.notes}.items() if v is not None}
             if fields:
                 items_service.patch(conn, u, lot["lot_id"], **fields)
             if it.category:
@@ -1057,15 +1126,17 @@ FIND_ITEM = ("find_item", "按名称查找物品(可模糊,可选限定路径 un
 })
 LIST_CATEGORIES = ("list_categories", "列出所有分类及其物品数量。", {"type": "object", "properties": {}, "required": []})
 SUBMIT_PLAN = ("submit_plan", "提交执行方案(等待用户确认后才会执行)。steps 每项 {tool, args}:"
-    "tool=create args={spaces:[[路径]...], items:[{name, at:[路径], qty?, unit?, category?, notes?, status?, alias?, attrs:[[键,值]]}]};"
+    "tool=create args={spaces:[路径 或 {path,type_tag?,group?}]...}, items:[{name, at:[路径], qty?, unit?, category?, notes?, status?, alias?, attrs:[[键,值]]}]};"
     "tool=update args={moves:[{from_path:[...],to_path:[...]}], item_moves:[{name,under?,to_path:[...]}], "
-    "spaces:[{path:[...],name?,type_tag?}], items:[{name,under?,new_name?,qty?,status?,notes?,category?,unit?,alias?,attrs_set:[[键,值]],attrs_del:[键]}], "
+    "spaces:[{path:[...],name?,type_tag?,group?}], items:[{name,under?,new_name?,qty?,status?,notes?,category?,unit?,alias?,attrs_set:[[键,值]],attrs_del:[键]}], "
     "to_items:[[路径]]};"
     "tool=remove args={spaces:[[路径]...], items:[{name,under?}]};"
     "tool=category args={add:[名称], rename:[{name,to}], merge:[{source,into}], remove:[名称]};"
     "tool=merge_defs args={target:名称, sources:[名称]};"
     "tool=set_image args={items:[{name,under?}], spaces:[[路径]]}(把本次上传的图片设为该实体预览图,只作用第一个引用);"
     "tool=reorder args={path:[...], spaces:[按新顺序排的名称]}. "
+    "物品 status 只能取 present/lent/consumed（在库/借出/用完）;type_tag 取 room/wardrobe/desk/drawer/shelf/box/generic;"
+    "group 如 家/公司 标在顶层场景卡片角。"
     "同类操作放进同一个数组分批批量;只有存在先后依赖才拆步骤。", {
     "type": "object",
     "properties": {"steps": {"type": "array", "items": {
@@ -1094,6 +1165,28 @@ def _user_content(message, attachments, anthropic_mode):
     return parts or [{"type": "text", "text": "(无输入)"}]
 
 
+_TOOL_CN = {"create": "新建", "update": "修改", "remove": "删除", "category": "分类",
+            "merge_defs": "合并", "set_image": "设图", "reorder": "排序"}
+
+
+def _plan_summary(steps) -> str:
+    c: dict[str, int] = {}
+    for s in steps or []:
+        t = s.get("tool") if isinstance(s, dict) else None
+        c[t] = c.get(t, 0) + 1
+    if not c:
+        return "没有可执行的操作。"
+    return "已拟好执行方案：" + "、".join(f"{_TOOL_CN.get(t, t)}×{n}" for t, n in c.items() if t)
+
+
+def _read_brief(name: str, args: dict) -> str:
+    if name == "read_tree":
+        return _p(args.get("path")) if args.get("path") else "整棵树"
+    if name == "find_item":
+        return str(args.get("name"))
+    return ""
+
+
 def _plan_read(user_id: int, name: str, args: dict) -> str:
     try:
         with read() as conn:
@@ -1109,8 +1202,8 @@ def _plan_read(user_id: int, name: str, args: dict) -> str:
 
 
 def plan_agent(base_url, api_key, model, user_id, message, attachments,
-               revision=None, prev_steps=None) -> tuple[list, str]:
-    """Returns (plan_steps_raw, reply). Only reads happen here — nothing mutates.
+               revision=None, prev_steps=None) -> tuple[list, str, list[str]]:
+    """Returns (plan_steps_raw, reply, reads_log). Only reads happen here — nothing mutates.
     `revision` re-drafts the existing `prev_steps` plan after a user tweak."""
     if "anthropic.com" in base_url:
         return _plan_anthropic(base_url, api_key, model, user_id, message, attachments, revision, prev_steps)
@@ -1118,7 +1211,7 @@ def plan_agent(base_url, api_key, model, user_id, message, attachments,
 
 
 def _plan_openai(base_url, api_key, model, user_id, message, attachments,
-                 revision=None, prev_steps=None) -> tuple[list, str]:
+                 revision=None, prev_steps=None) -> tuple[list, str, list[str]]:
     client = OpenAI(base_url=base_url, api_key=api_key or "sk-local")
     tools = [{"type": "function", "function": {"name": n, "description": d, "parameters": p}}
              for n, d, p in _PLAN_TOOLS]
@@ -1131,12 +1224,13 @@ def _plan_openai(base_url, api_key, model, user_id, message, attachments,
         messages.append({"role": "user", "content":
             f"当前已拟的方案（steps JSON）：\n{prev}\n\n用户想修改：{revision}\n"
             "请基于原需求重新出方案：只调整用户要求的部分，尽量少改动其它内容，仍用 submit_plan 提交。"})
+    reads: list[str] = []
     for _ in range(30):  # runaway guard for the read loop; planning ends at submit_plan
         resp = client.chat.completions.create(model=model, messages=messages, tools=tools,
                                               tool_choice="auto", max_tokens=2000, temperature=0.2)
         msg = resp.choices[0].message
         if not msg.tool_calls:
-            return [], msg.content or "(没有给出执行方案)"
+            return [], msg.content or "(没有给出执行方案)", reads
         messages.append({
             "role": "assistant", "content": msg.content or "",
             "tool_calls": [{"id": tc.id, "type": "function",
@@ -1149,13 +1243,17 @@ def _plan_openai(base_url, api_key, model, user_id, message, attachments,
             except Exception:
                 args = {}
             if tc.function.name == "submit_plan":
-                return args.get("steps") or [], msg.content or ""
+                steps = args.get("steps") or []
+                return steps, (msg.content or "").strip() or _plan_summary(steps), reads
+            brief = _read_brief(tc.function.name, args)
+            if brief:
+                reads.append(f"{tc.function.name} {brief}")
             messages.append({"role": "tool", "tool_call_id": tc.id, "content": _plan_read(user_id, tc.function.name, args)})
-    return [], "(没能形成执行方案，请换个说法或更具体一点)"
+    return [], "(没能形成执行方案，请换个说法或更具体一点)", reads
 
 
 def _plan_anthropic(base_url, api_key, model, user_id, message, attachments,
-                    revision=None, prev_steps=None) -> tuple[list, str]:
+                    revision=None, prev_steps=None) -> tuple[list, str, list[str]]:
     client = anthropic.Anthropic(api_key=api_key or "sk-local")
     tools = [{"name": n, "description": d, "input_schema": p} for n, d, p in _PLAN_TOOLS]
     messages = [{"role": "user", "content": _user_content(message, attachments, True)}]
@@ -1164,12 +1262,13 @@ def _plan_anthropic(base_url, api_key, model, user_id, message, attachments,
         messages.append({"role": "user", "content":
             f"当前已拟的方案（steps JSON）：\n{prev}\n\n用户想修改：{revision}\n"
             "请基于原需求重新出方案：只调整用户要求的部分，尽量少改动其它内容，仍用 submit_plan 提交。"})
+    reads: list[str] = []
     for _ in range(30):
         resp = client.messages.create(model=model, system=_system_with_categories(user_id), messages=messages,
                                       tools=tools, max_tokens=2000, temperature=0.2)
         tool_uses = [b for b in resp.content if b.type == "tool_use"]
         if not tool_uses:
-            return [], "".join(b.text for b in resp.content if b.type == "text") or "(没有给出执行方案)"
+            return [], "".join(b.text for b in resp.content if b.type == "text") or "(没有给出执行方案)", reads
         messages.append({"role": "assistant", "content": [b.model_dump() for b in resp.content]})
         results = []
         for b in tool_uses:
@@ -1177,9 +1276,12 @@ def _plan_anthropic(base_url, api_key, model, user_id, message, attachments,
                 plan = (b.input or {}).get("steps") or []
                 text = "".join(x.text for x in resp.content if x.type == "text")
                 if plan:
-                    return plan, text
+                    return plan, text.strip() or _plan_summary(plan), reads
                 results.append({"type": "tool_result", "tool_use_id": b.id, "content": "方案为空,请再给一次"})
                 continue
+            brief = _read_brief(b.name, b.input or {})
+            if brief:
+                reads.append(f"{b.name} {brief}")
             results.append({"type": "tool_result", "tool_use_id": b.id, "content": _plan_read(user_id, b.name, b.input or {})})
         messages.append({"role": "user", "content": results})
-    return [], "(没能形成执行方案，请换个说法或更具体一点)"
+    return [], "(没能形成执行方案，请换个说法或更具体一点)", reads

@@ -126,6 +126,7 @@ export function Spotlight() {
   type APhase = 'idle' | 'planning' | 'await' | 'applying' | 'done';
   const [aPhase, setAPhase] = useState<APhase>('idle');
   const [aPlan, setAPlan] = useState<PlanStep[]>([]);
+  const [aReads, setAReads] = useState<string[]>([]);
   const [aReply, setAReply] = useState('');
   const [aResults, setAResults] = useState<ApplyResult[] | null>(null);
   const [aUndoId, setAUndoId] = useState<number | null>(null);
@@ -315,6 +316,7 @@ export function Spotlight() {
   const aReset = () => {
     setAPhase('idle');
     setAPlan([]);
+    setAReads([]);
     setAResults(null);
     setAUndoId(null);
     setAReply('');
@@ -349,6 +351,7 @@ export function Spotlight() {
     try {
       const r = await agentPlan(aMsg.trim() || undefined, aImgB ? [{ image_base64: aImgB }] : undefined);
       setAReply(r.reply);
+      setAReads(r.reads);
       if (r.steps.length) {
         setAPlan(r.steps);
         setAPhase('await');
@@ -396,6 +399,7 @@ export function Spotlight() {
         prev_steps: aPlan,
       });
       setAReply(r.reply);
+      setAReads(r.reads);
       if (r.steps.length) {
         setAPlan(r.steps);
         setARev('');
@@ -479,9 +483,14 @@ export function Spotlight() {
                     ? res.lines
                     : planLines(s, (k, v) => fmt(k, v ?? {})).map((x) => ({ ok: true, text: x }));
                   return (
-                    <details key={i}>
+                    <details key={i} className="glass-card" style={V({ padding: '4px 10px', borderRadius: 10, borderLeft: `3px solid ${TOOL_COLOR[s.tool]}` })}>
                       <summary className="rowline gap6" style={{ cursor: 'pointer', alignItems: 'center' }}>
-                        <span className="t-mono t-xs" style={{ color: 'var(--faint)', width: 16, flex: 'none' }}>{i + 1}.</span>
+                        <span
+                          className="t-mono t-xs"
+                          style={V({ width: 18, height: 18, borderRadius: 9, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', background: TOOL_COLOR[s.tool], color: '#fff', flex: 'none', fontSize: 11 })}
+                        >
+                          {i + 1}
+                        </span>
                         <span
                           className="tag"
                           style={V({ color: TOOL_COLOR[s.tool], borderColor: TOOL_COLOR[s.tool], flex: 'none' })}
@@ -571,7 +580,23 @@ export function Spotlight() {
                 ) : null}
               </div>
             ) : null}
-            {aReply ? <p className="t-sm t-faint" style={{ margin: 0, whiteSpace: 'pre-wrap' }}>{aReply}</p> : null}
+            {aReads.length ? (
+              <div className="rowline gap6" style={{ flexWrap: 'wrap' }}>
+                {aReads.map((r, i) => (
+                  <span key={i} className="t-xs t-faint" style={{ border: '1px solid var(--border)', borderRadius: 999, padding: '1px 8px' }}>
+                    {r}
+                  </span>
+                ))}
+              </div>
+            ) : null}
+            {aReply ? (
+              <div className="rowline" style={{ gap: 8, alignItems: 'flex-start' }}>
+                <span className="tag tag--type" style={V({ ['--tc']: 'var(--accent)', flex: 'none', marginTop: 2 })}>
+                  {t('ai.assistant')}
+                </span>
+                <p className="t-sm" style={{ margin: 0, whiteSpace: 'pre-wrap' }}>{aReply}</p>
+              </div>
+            ) : null}
           </div>
         ) : (
           <>

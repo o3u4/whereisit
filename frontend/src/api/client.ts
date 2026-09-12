@@ -372,8 +372,8 @@ export async function agentPlan(
   message?: string,
   attachments?: { image_base64?: string }[],
   opts?: { revision?: string; prev_steps?: PlanStep[] },
-): Promise<{ steps: PlanStep[]; reply: string }> {
-  return request<{ steps: PlanStep[]; reply: string }>('POST', '/llm/agent/plan', {
+): Promise<{ steps: PlanStep[]; reply: string; reads: string[] }> {
+  return request<{ steps: PlanStep[]; reply: string; reads: string[] }>('POST', '/llm/agent/plan', {
     message,
     attachments,
     revision: opts?.revision,
