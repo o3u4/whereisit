@@ -343,6 +343,28 @@ export async function buildTree(
   });
 }
 
+/* ---- LLM agent: natural-language operations with tool calls ----------------- */
+export interface AgentStep {
+  tool: string;
+  args: Record<string, unknown>;
+  result: string;
+}
+
+export async function agentRun(
+  message?: string,
+  attachments?: { image_base64?: string }[],
+): Promise<{ steps: AgentStep[]; reply: string; undo_id: number | null }> {
+  return request<{ steps: AgentStep[]; reply: string; undo_id: number | null }>(
+    'POST',
+    '/llm/agent',
+    { message, attachments },
+  );
+}
+
+export async function agentUndo(undoId: number): Promise<{ restored: Record<string, number> }> {
+  return request<{ restored: Record<string, number> }>('POST', '/llm/agent/undo', { undo_id: undoId });
+}
+
 export interface PatchFields {
   qty?: number;
   status?: ItemStatus;

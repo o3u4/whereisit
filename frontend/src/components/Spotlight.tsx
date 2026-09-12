@@ -2,14 +2,15 @@
  * hotkey summons the same overlay from any page (Hub / Browse / Record). */
 
 import { useEffect, useMemo, useRef, useState } from 'react';
-import type { CSSProperties, KeyboardEvent, ReactNode } from 'react';
+import type { ChangeEvent, CSSProperties, KeyboardEvent, ReactNode } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Icon, TYPE_ICON } from './icons';
 import { Seg, Kbd, EmptyState, StatusBadge } from './ui';
 import { catMeta } from '../lib/meta';
 import { dirById, frequentItemNames, pathNames } from '../lib/tree';
 import type { Item } from '../lib/types';
-import type { SearchResult } from '../api/client';
+import type { AgentStep, SearchResult } from '../api/client';
+import { agentRun, agentUndo } from '../api/client';
 import type { SearchModeDTO } from '../api/types';
 import { useCatalog } from '../stores/catalog';
 import { useOverlay } from '../stores/overlay';
@@ -39,6 +40,15 @@ export function Spotlight() {
   const [searching, setSearching] = useState(false);
   const qInput = useRef<HTMLInputElement>(null);
   const searchSeq = useRef(0);
+  const [view, setView] = useState<'search' | 'agent'>('search');
+  const [aMsg, setAMsg] = useState('');
+  const [aImgB, setAImgB] = useState<string | null>(null); // base64 for API
+  const [aImgU, setAImgU] = useState<string | null>(null); // dataURL preview
+  const [aSteps, setASteps] = useState<AgentStep[]>([]);
+  const [aReply, setAReply] = useState('');
+  const [aUndoId, setAUndoId] = useState<number | null>(null);
+  const [aBusy, setABusy] = useState(false);
+  const aFile = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     if (spot) {
@@ -217,6 +227,49 @@ export function Spotlight() {
     );
   }
 
+  const pickAgentImg = (e: ChangeEvent<HTMLInputElement>) => {
+    const f = e.target.files?.[0];
+    e.target.value = '';
+    if (!f) return;
+    const rd = new FileReader();
+    rd.onload = () => {
+      const d = String(rd.result);
+      setAImgU(d);
+      setAImgB(d.slice(d.indexOf(',') + 1));
+    };
+    rd.readAsDataURL(f);
+  };
+
+  const runAgent = async () => {
+    if ((!aMsg.trim() && !aImgB) || aBusy) return;
+    setABusy(true);
+    setAReply('');
+    setASteps([]);
+    setAUndoId(null);
+    try {
+      const r = await agentRun(aMsg.trim() || undefined, aImgB ? [{ image_base64: aImgB }] : undefined);
+      setASteps(r.steps);
+      setAReply(r.reply);
+      setAUndoId(r.undo_id);
+      void useCatalog.getState().load();
+    } catch (err) {
+      setAReply(err instanceof Error ? err.message : String(err));
+    } finally {
+      setABusy(false);
+    }
+  };
+
+  const doAgentUndo = async () => {
+    if (aUndoId == null) return;
+    try {
+      await agentUndo(aUndoId);
+      setAUndoId(null);
+      void useCatalog.getState().load();
+    } catch {
+      /* ignore */
+    }
+  };
+
   return (
     <>
       <div className={`dim${spot ? ' show' : ''}`} onClick={closeSpot} aria-hidden={!spot} />
@@ -226,7 +279,66 @@ export function Spotlight() {
         aria-modal="true"
         aria-label={t('hub.spotAria')}
       >
-        <div style={{ padding: '12px 14px 4px' }}>
+        <div style={{ padding: '10px 14px 0' }}>
+          <Seg
+            fluid
+            value={view}
+            onChange={(v) => setView(v as 'search' | 'agent')}
+            options={[
+              { value: 'search', label: t('ai.search') },
+              { value: 'agent', label: t('ai.title') },
+            ]}
+          />
+        </div>
+        {view === 'agent' ? (
+          <div className="col gap8" style={{ padding: '12px 14px 6px' }}>
+            <textarea
+              className="field"
+              value={aMsg}
+              onChange={(e) => setAMsg(e.target.value)}
+              placeholder={t('ai.ph')}
+              rows={3}
+              style={{ resize: 'vertical', minHeight: 64, padding: '10px 14px' }}
+            />
+            <div className="rowline gap8">
+              {aImgU ? (
+                <img src={aImgU} alt="" style={{ width: 52, height: 40, objectFit: 'cover', borderRadius: 8, border: '1px solid var(--border)' }} />
+              ) : null}
+              <button type="button" className="btn btn--soft btn--sm" onClick={() => aFile.current?.click()}>
+                {t('ai.attach')}
+              </button>
+              {aImgU ? (
+                <button type="button" className="btn btn--ghost btn--sm" onClick={() => { setAImgB(null); setAImgU(null); }}>
+                  {t('ai.remove')}
+                </button>
+              ) : null}
+              <input ref={aFile} type="file" accept="image/*" style={{ display: 'none' }} onChange={pickAgentImg} />
+              <span className="grow" />
+              <button type="button" className="btn btn--primary" disabled={(!aMsg.trim() && !aImgB) || aBusy} onClick={() => void runAgent()}>
+                {aBusy ? t('ai.busy') : t('ai.send')}
+              </button>
+            </div>
+            {aSteps.length ? (
+              <div className="col gap4" style={{ maxHeight: '40vh', overflow: 'auto' }}>
+                {aSteps.map((s, i) => (
+                  <div key={i} className="rowline gap6 t-sm">
+                    <span style={{ color: 'var(--present)' }}>✓</span>
+                    <span className="t-mono t-xs" style={{ color: 'var(--faint)' }}>{s.tool}</span>
+                    <span className="ellip">{s.result}</span>
+                  </div>
+                ))}
+                {aUndoId != null ? (
+                  <button type="button" className="btn btn--ghost btn--sm" onClick={() => void doAgentUndo()}>
+                    {t('ai.undo')}
+                  </button>
+                ) : null}
+              </div>
+            ) : null}
+            {aReply ? <p className="t-sm" style={{ margin: 0, whiteSpace: 'pre-wrap' }}>{aReply}</p> : null}
+          </div>
+        ) : (
+          <>
+          <div style={{ padding: '12px 14px 4px' }}>
           <div className="rowline" style={V({ gap: 10 })}>
             <Icon name="search" size={20} style={V({ color: 'var(--accent)', flex: 'none' })} />
             <input
@@ -283,6 +395,8 @@ export function Spotlight() {
           <span className="grow" />
           <span className="t-mono">{t('hub.kbdHint')}</span>
         </div>
+          </>
+        )}
       </div>
     </>
   );
