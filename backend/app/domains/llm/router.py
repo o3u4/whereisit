@@ -25,6 +25,8 @@ class RecognizeBody(BaseModel):
 class PlanBody(BaseModel):
     message: str | None = None
     attachments: list[dict] | None = None
+    revision: str | None = None
+    prev_steps: list[dict] | None = None
 
 
 class ApplyBody(BaseModel):
@@ -63,7 +65,8 @@ def agent_plan(payload: PlanBody, user_id: int = Depends(get_current_user)) -> d
     if not llm["base_url"]:
         raise ServiceUnavailable("LLM 未配置，请在设置里填接口地址")
     steps, reply = agent.plan_agent(
-        llm["base_url"], llm["api_key"], llm["model"], user_id, payload.message, payload.attachments
+        llm["base_url"], llm["api_key"], llm["model"], user_id, payload.message, payload.attachments,
+        revision=payload.revision, prev_steps=payload.prev_steps,
     )
     return ok({"steps": agent.validate_plan(steps), "reply": reply})
 

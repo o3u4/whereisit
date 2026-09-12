@@ -96,6 +96,8 @@ export function Spotlight() {
   const [aReply, setAReply] = useState('');
   const [aResults, setAResults] = useState<ApplyResult[] | null>(null);
   const [aUndoId, setAUndoId] = useState<number | null>(null);
+  const [aRevOpen, setARevOpen] = useState(false);
+  const [aRev, setARev] = useState('');
   const aFile = useRef<HTMLInputElement>(null);
 
   const aBusy = aPhase === 'planning' || aPhase === 'applying';
@@ -283,6 +285,8 @@ export function Spotlight() {
     setAResults(null);
     setAUndoId(null);
     setAReply('');
+    setARevOpen(false);
+    setARev('');
   };
   const aResetAll = () => {
     aReset();
@@ -350,6 +354,33 @@ export function Spotlight() {
     aResetAll();
   };
 
+  const runRevisePlan = async () => {
+    if (!aRev.trim() || aBusy) return;
+    setAPhase('planning');
+    try {
+      const r = await agentPlan(aMsg.trim() || undefined, aImgB ? [{ image_base64: aImgB }] : undefined, {
+        revision: aRev.trim(),
+        prev_steps: aPlan,
+      });
+      setAReply(r.reply);
+      if (r.steps.length) {
+        setAPlan(r.steps);
+        setARev('');
+        setARevOpen(false);
+      }
+      setAPhase('await');
+    } catch (err) {
+      setAReply(err instanceof Error ? err.message : String(err));
+      setAPhase('await');
+    }
+  };
+
+  const dropStep = (i: number) => {
+    const next = aPlan.filter((_, idx) => idx !== i);
+    if (!next.length) aReset();
+    else setAPlan(next);
+  };
+
   return (
     <>
       <div className={`dim${spot ? ' show' : ''}`} onClick={closeSpot} aria-hidden={!spot} />
@@ -371,7 +402,7 @@ export function Spotlight() {
           />
         </div>
         {view === 'agent' ? (
-          <div className="col gap8" style={{ padding: '12px 14px 6px' }}>
+          <div className="col gap8" style={{ padding: '12px 14px 6px', maxHeight: '60vh', overflowY: 'auto', minHeight: 0 }}>
             <textarea
               className="field"
               value={aMsg}
@@ -404,7 +435,7 @@ export function Spotlight() {
             </div>
 
             {aPlan.length ? (
-              <div className="col gap6" style={{ maxHeight: '42vh', overflow: 'auto' }}>
+              <div className="col gap6">
                 <div className="rowline gap6" style={{ alignItems: 'baseline' }}>
                   <span className="t-sm" style={{ fontWeight: 600 }}>{t('ai.planTitle')}</span>
                   {aPlan.length > 1 ? <span className="t-xs t-faint">{fmt('ai.orderHint', { n: aPlan.length })}</span> : null}
@@ -427,6 +458,21 @@ export function Spotlight() {
                         <span className="t-sm ellip">{lines[0]?.text ?? '—'}</span>
                         <span className="grow" />
                         <span className="t-xs t-faint" style={{ flex: 'none' }}>{fmt('ai.stepCount', { n: lines.length })}</span>
+                        {aPhase === 'await' && !aResults ? (
+                          <button
+                            type="button"
+                            className="btn btn--ghost btn--sm"
+                            style={V({ color: 'var(--danger)', padding: '0 6px' })}
+                            aria-label={t('ai.removeStep')}
+                            title={t('ai.removeStep')}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              dropStep(i);
+                            }}
+                          >
+                            ✕
+                          </button>
+                        ) : null}
                       </summary>
                       <div className="col gap4" style={{ padding: '4px 0 4px 24px' }}>
                         {lines.map((l, j) => (
@@ -442,20 +488,53 @@ export function Spotlight() {
                   );
                 })}
                 {aPhase === 'await' ? (
-                  <div className="rowline gap8">
-                    <button type="button" className="btn btn--primary btn--sm" onClick={() => void confirmApply()}>
-                      {t('ai.approve')}
-                    </button>
-                    <button type="button" className="btn btn--ghost btn--sm" onClick={aResetAll}>
-                      {t('ai.cancelPlan')}
-                    </button>
+                  <div className="col gap8">
+                    <div className="rowline gap8">
+                      <button type="button" className="btn btn--primary btn--sm" onClick={() => void confirmApply()}>
+                        {t('ai.approve')}
+                      </button>
+                      <button type="button" className="btn btn--soft btn--sm" onClick={() => setARevOpen((v) => !v)}>
+                        {t('ai.modifyPlan')}
+                      </button>
+                      <button type="button" className="btn btn--ghost btn--sm" onClick={aResetAll}>
+                        {t('ai.cancelPlan')}
+                      </button>
+                    </div>
+                    {aRevOpen ? (
+                      <div className="col gap6">
+                        <input
+                          className="field"
+                          value={aRev}
+                          onChange={(e) => setARev(e.target.value)}
+                          placeholder={t('ai.revisePh')}
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter') void runRevisePlan();
+                          }}
+                        />
+                        <button
+                          type="button"
+                          className="btn btn--soft btn--sm"
+                          disabled={!aRev.trim() || aBusy}
+                          onClick={() => void runRevisePlan()}
+                        >
+                          {aBusy ? t('ai.planning') : t('ai.revise')}
+                        </button>
+                      </div>
+                    ) : null}
                   </div>
                 ) : null}
                 {aPhase === 'applying' ? <p className="t-sm t-faint" style={{ margin: 0 }}>{t('ai.applying')}</p> : null}
-                {aPhase === 'done' && aUndoId != null ? (
-                  <button type="button" className="btn btn--ghost btn--sm" onClick={() => void doAgentUndo()}>
-                    {t('ai.undo')}
-                  </button>
+                {aPhase === 'done' ? (
+                  <div className="rowline gap8">
+                    {aUndoId != null ? (
+                      <button type="button" className="btn btn--ghost btn--sm" onClick={() => void doAgentUndo()}>
+                        {t('ai.undo')}
+                      </button>
+                    ) : null}
+                    <button type="button" className="btn btn--soft btn--sm" onClick={aResetAll}>
+                      {t('ai.done')}
+                    </button>
+                  </div>
                 ) : null}
               </div>
             ) : null}

@@ -37,10 +37,13 @@ Rules:
 - Batch aggressively: many same-kind changes belong in one step's array, not
   many steps. Keep the total number of steps as small as the ordering allows.
 - read_tree never appears in the plan.
+- Categories: reuse the existing category names given in your instructions as
+  much as possible; create a new category only when nothing existing fits.
 - Lending with a return date (e.g. 3天后还) = update the item: status 'lent'
   and notes mentioning the due date.
 - Deletion is allowed only for restructuring (empty/duplicate containers), not
   plain data removal the user didn't ask for.
+- Always reply in Chinese unless the user writes in another language.
 - When you call submit_plan, also write a short plan summary (in the user's
   language) as your reply text. Never ask the user questions mid-planning; do
   the reasonable thing."""
@@ -668,21 +671,42 @@ def _plan_read(user_id: int, args: dict) -> str:
         return str(e)
 
 
-def plan_agent(base_url, api_key, model, user_id, message, attachments) -> tuple[list, str]:
-    """Returns (plan_steps_raw, reply). Only reads happen here — nothing mutates."""
+def _category_names(conn, user_id: int) -> str:
+    rows = conn.execute(
+        "SELECT name FROM categories WHERE owner_id = ? ORDER BY name", (user_id,)
+    ).fetchall()
+    return "、".join(r["name"] for r in rows) or "（暂无分类）"
+
+
+def _system_with_categories(user_id: int) -> str:
+    with read() as conn:
+        cats = _category_names(conn, user_id)
+    return SYSTEM + f"\n\n现有分类（尽量复用这些名称，不要轻易新建）：{cats}"
+
+
+def plan_agent(base_url, api_key, model, user_id, message, attachments,
+               revision=None, prev_steps=None) -> tuple[list, str]:
+    """Returns (plan_steps_raw, reply). Only reads happen here — nothing mutates.
+    `revision` re-drafts the existing `prev_steps` plan after a user tweak."""
     if "anthropic.com" in base_url:
-        return _plan_anthropic(base_url, api_key, model, user_id, message, attachments)
-    return _plan_openai(base_url, api_key, model, user_id, message, attachments)
+        return _plan_anthropic(base_url, api_key, model, user_id, message, attachments, revision, prev_steps)
+    return _plan_openai(base_url, api_key, model, user_id, message, attachments, revision, prev_steps)
 
 
-def _plan_openai(base_url, api_key, model, user_id, message, attachments) -> tuple[list, str]:
+def _plan_openai(base_url, api_key, model, user_id, message, attachments,
+                 revision=None, prev_steps=None) -> tuple[list, str]:
     client = OpenAI(base_url=base_url, api_key=api_key or "sk-local")
     tools = [{"type": "function", "function": {"name": n, "description": d, "parameters": p}}
              for n, d, p in _PLAN_TOOLS]
     messages = [
-        {"role": "system", "content": SYSTEM},
+        {"role": "system", "content": _system_with_categories(user_id)},
         {"role": "user", "content": _user_content(message, attachments, False)},
     ]
+    if revision:
+        prev = json.dumps(prev_steps or [], ensure_ascii=False)
+        messages.append({"role": "user", "content":
+            f"当前已拟的方案（steps JSON）：\n{prev}\n\n用户想修改：{revision}\n"
+            "请基于原需求重新出方案：只调整用户要求的部分，尽量少改动其它内容，仍用 submit_plan 提交。"})
     for _ in range(30):  # runaway guard for the read loop; planning ends at submit_plan
         resp = client.chat.completions.create(model=model, messages=messages, tools=tools,
                                               tool_choice="auto", max_tokens=2000, temperature=0.2)
@@ -707,10 +731,16 @@ def _plan_openai(base_url, api_key, model, user_id, message, attachments) -> tup
     return [], "(没能形成执行方案，请换个说法或更具体一点)"
 
 
-def _plan_anthropic(base_url, api_key, model, user_id, message, attachments) -> tuple[list, str]:
+def _plan_anthropic(base_url, api_key, model, user_id, message, attachments,
+                    revision=None, prev_steps=None) -> tuple[list, str]:
     client = anthropic.Anthropic(api_key=api_key or "sk-local")
     tools = [{"name": n, "description": d, "input_schema": p} for n, d, p in _PLAN_TOOLS]
     messages = [{"role": "user", "content": _user_content(message, attachments, True)}]
+    if revision:
+        prev = json.dumps(prev_steps or [], ensure_ascii=False)
+        messages.append({"role": "user", "content":
+            f"当前已拟的方案（steps JSON）：\n{prev}\n\n用户想修改：{revision}\n"
+            "请基于原需求重新出方案：只调整用户要求的部分，尽量少改动其它内容，仍用 submit_plan 提交。"})
     for _ in range(30):
         resp = client.messages.create(model=model, system=SYSTEM, messages=messages,
                                       tools=tools, max_tokens=2000, temperature=0.2)

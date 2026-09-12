@@ -941,6 +941,11 @@ function CategorySheet({ open, onClose }: { open: boolean; onClose: () => void }
   const [editingName, setEditingName] = useState('');
   const [deletingId, setDeletingId] = useState<number | null>(null);
   const [deleteInto, setDeleteInto] = useState<number | ''>('');
+  const [dragId, setDragId] = useState<number | null>(null);
+  const [overId, setOverId] = useState<number | null>(null);
+
+  const sorted = useMemo(() => [...categories].sort((a, b) => b.itemCount - a.itemCount), [categories]);
+  const emptyCount = categories.filter((c) => c.itemCount === 0).length;
 
   const submitNew = async () => {
     const n = newName.trim();
@@ -957,9 +962,24 @@ function CategorySheet({ open, onClose }: { open: boolean; onClose: () => void }
   const confirmDelete = async () => {
     if (deletingId == null) return;
     const into = deleteInto === '' ? undefined : Number(deleteInto);
-    if (await removeCategory(deletingId, into)) toast('已删除分类');
+    const wasEmpty = (categories.find((c) => c.id === deletingId)?.itemCount ?? 0) === 0;
+    if (await removeCategory(deletingId, into)) toast(wasEmpty ? '已删除分类' : '已合并分类');
     setDeletingId(null);
     setDeleteInto('');
+  };
+  const clearEmpty = async () => {
+    const ids = categories.filter((c) => c.itemCount === 0).map((c) => c.id);
+    let ok = 0;
+    for (const id of ids) if (await removeCategory(id)) ok += 1;
+    if (ok) toast(fmt('cat.removeEmptyDone', { n: ok }));
+  };
+  const dropMerge = async (targetId: number) => {
+    const src = dragId;
+    setDragId(null);
+    setOverId(null);
+    if (src == null || src === targetId) return;
+    const target = categories.find((c) => c.id === targetId);
+    if (await removeCategory(src, targetId)) toast(fmt('cat.mergeToast', { name: target?.name ?? '' }));
   };
 
   return (
@@ -982,13 +1002,57 @@ function CategorySheet({ open, onClose }: { open: boolean; onClose: () => void }
         >
           {t('app.add')}
         </button>
+        <span className="grow" />
+        {emptyCount > 0 ? (
+          <button type="button" className="btn btn--soft btn--sm" onClick={() => void clearEmpty()} title={t('cat.removeEmptyTip')}>
+            {fmt('cat.removeEmpty', { n: emptyCount })}
+          </button>
+        ) : null}
       </div>
       <div className="col gap6">
-        {categories.map((c) => {
+        {sorted.map((c) => {
           const editing = editingId === c.id;
           const deleting = deletingId === c.id;
+          const isOver = overId === c.id && dragId !== null && dragId !== c.id;
           return (
-            <div key={c.id} className="glass-card panel" style={{ padding: 10, display: 'flex', alignItems: 'center', gap: 8 }}>
+            <div
+              key={c.id}
+              className="glass-card panel"
+              draggable={!editing && !deleting}
+              onDragStart={(e) => {
+                setDragId(c.id);
+                e.dataTransfer.effectAllowed = 'move';
+                try {
+                  e.dataTransfer.setData('text/plain', String(c.id));
+                } catch {
+                  /* ignore */
+                }
+              }}
+              onDragEnd={() => {
+                setDragId(null);
+                setOverId(null);
+              }}
+              onDragOver={(e) => {
+                e.preventDefault();
+                if (dragId !== null && dragId !== c.id) setOverId(c.id);
+              }}
+              onDragLeave={() => {
+                if (overId === c.id) setOverId(null);
+              }}
+              onDrop={(e) => {
+                e.preventDefault();
+                void dropMerge(c.id);
+              }}
+              title={editing || deleting ? undefined : t('cat.dragMerge')}
+              style={{
+                padding: 10,
+                display: 'flex',
+                alignItems: 'center',
+                gap: 8,
+                cursor: editing || deleting ? 'default' : 'grab',
+                ...(isOver ? V({ borderColor: 'var(--accent)', boxShadow: '0 0 0 1px var(--accent)' }) : {}),
+              }}
+            >
               {editing ? (
                 <>
                   <input
@@ -1027,7 +1091,7 @@ function CategorySheet({ open, onClose }: { open: boolean; onClose: () => void }
                     disabled={c.itemCount > 0 && deleteInto === ''}
                     onClick={() => void confirmDelete()}
                   >
-                    {t('app.delete')}
+                    {c.itemCount > 0 ? t('cat.merge') : t('app.delete')}
                   </button>
                   <button type="button" className="btn btn--ghost btn--sm" onClick={() => setDeletingId(null)}>{t('app.cancel')}</button>
                 </>
