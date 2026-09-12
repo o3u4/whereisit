@@ -11,6 +11,14 @@ import { Sheet } from './ui';
 import { useToast } from '../stores/toast';
 import { useTr } from '../i18n';
 
+/** converting a subspace to an item: its own children flatten into items too */
+function toItems(node: TreeNode): TreeItem[] {
+  const out: TreeItem[] = [{ name: node.name, qty: 1 }];
+  for (const c of node.children ?? []) out.push(...toItems(c));
+  for (const it of node.items ?? []) out.push(it);
+  return out;
+}
+
 function TreeItemRow({
   item,
   onChange,
@@ -57,11 +65,13 @@ function NodeEditor({
   node,
   onChange,
   onRemove,
+  onToItem,
   depth,
 }: {
   node: TreeNode;
   onChange: (n: TreeNode) => void;
   onRemove: () => void;
+  onToItem?: () => void;
   depth: number;
 }) {
   const { t } = useTr();
@@ -72,10 +82,20 @@ function NodeEditor({
   const items = node.items ?? [];
 
   const rename = (name: string) => onChange({ ...node, name });
+  const askToItem = () => {
+    if (!onToItem) return;
+    if (window.confirm(t('llm.toItemQ'))) onToItem();
+  };
 
   return (
     <div style={depth ? { marginLeft: 12, paddingLeft: 10, borderLeft: '2px solid var(--border)' } : undefined}>
-      <div className="rowline gap6">
+      <div
+        className="rowline gap6"
+        onContextMenu={(e) => {
+          e.preventDefault();
+          askToItem();
+        }}
+      >
         {renaming ? (
           <>
             <input
@@ -94,6 +114,9 @@ function NodeEditor({
             <span className="t-mono" style={{ color: 'var(--faint)' }}>{'▸'.repeat(depth + 1)}</span>
             <b className="ellip" style={{ flex: '1', minWidth: 0 }}>{node.name}</b>
             <button type="button" className="btn--text t-sm" onClick={() => setRenaming(true)}>{t('cat.rename')}</button>
+            {onToItem ? (
+              <button type="button" className="btn--text t-sm" onClick={askToItem}>{t('llm.toItem')}</button>
+            ) : null}
             <button type="button" className="btn--text t-sm" style={{ color: 'var(--danger)' }} onClick={onRemove}>{t('app.delete')}</button>
           </>
         )}
@@ -105,6 +128,7 @@ function NodeEditor({
           node={k}
           onChange={(nk) => onChange({ ...node, children: kids.map((x, j) => (j === i ? nk : x)) })}
           onRemove={() => onChange({ ...node, children: kids.filter((_, j) => j !== i) })}
+          onToItem={() => onChange({ ...node, children: kids.filter((_, j) => j !== i), items: [...items, ...toItems(k)] })}
           depth={depth + 1}
         />
       ))}

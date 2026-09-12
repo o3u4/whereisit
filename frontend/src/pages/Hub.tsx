@@ -582,21 +582,24 @@ function SettingsSheet({
         <p className="t-sm t-muted" style={{ margin: 0 }}>{t('llm.cfgHint')}</p>
         <div className="wrap-t gap6">
           <span className="t-xs t-muted" style={{ alignSelf: 'center' }}>{t('llm.quick')}</span>
-          {LLM_VENDORS.map((v) => (
-            <button
-              key={v.id}
-              type="button"
-              className="chip chip--glass"
-              title={`${v.url} · ${v.model}`}
-              onClick={() => { setLlmUrl(v.url); setLlmModel(v.model); }}
-            >
-              <i className="cdot" style={{ background: v.tint }} />
-              {v.name}
-            </button>
-          ))}
+          {LLM_VENDORS.map((v) => {
+            const on = llmUrl.trim() === v.url;
+            return (
+              <button
+                key={v.id}
+                type="button"
+                className={`chip${on ? ' chip--active' : ' chip--glass'}`}
+                title={`${v.url} · ${v.model}`}
+                onClick={() => { setLlmUrl(v.url); setLlmModel(v.model); }}
+              >
+                <i className="cdot" style={{ background: v.tint }} />
+                {v.name}
+              </button>
+            );
+          })}
         </div>
         <span className="t-xs t-mono" style={V({ color: s?.llm_configured ? 'var(--present)' : 'var(--faint)' })}>
-          {s?.llm_configured ? t('llm.on') : t('llm.off')}
+          {s?.llm_configured ? fmt('llm.onModel', { model: s?.llm_model || '?' }) : t('llm.off')}
         </span>
         <input className="field" value={llmUrl} placeholder={t('llm.baseUrlPh')} autoComplete="off" onChange={(e) => setLlmUrl(e.target.value)} />
         <input className="field" value={llmModel} placeholder={t('llm.modelPh')} autoComplete="off" onChange={(e) => setLlmModel(e.target.value)} />

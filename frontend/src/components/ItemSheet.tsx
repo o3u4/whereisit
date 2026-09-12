@@ -46,6 +46,7 @@ export function ItemSheet({
 }) {
   const setStatus = useCatalog((s) => s.setStatus);
   const setQty = useCatalog((s) => s.setQty);
+  const renameItem = useCatalog((s) => s.renameItem);
   const setNotes = useCatalog((s) => s.setNotes);
   const changeCategory = useCatalog((s) => s.changeCategory);
   const addCategory = useCatalog((s) => s.addCategory);
@@ -75,6 +76,8 @@ export function ItemSheet({
   const [qty, setQtyLocal] = useState(item ? item.qty : 1);
   const [imgNonce, setImgNonce] = useState(0);
   const [imgAct, setImgAct] = useState(false);
+  const [editingName, setEditingName] = useState(false);
+  const [nameDraft, setNameDraft] = useState('');
   const imgInput = useRef<HTMLInputElement>(null);
   useEffect(() => {
     if (item) setQtyLocal(item.qty);
@@ -97,6 +100,19 @@ export function ItemSheet({
     if (!item) return;
     await api.deleteMedia('lot', Number(item.slug));
     setImgNonce((n) => n + 1);
+  };
+
+  const startRename = () => {
+    if (!item) return;
+    setNameDraft(item.name);
+    setEditingName(true);
+  };
+  const saveRename = async () => {
+    if (!item) return;
+    const n = nameDraft.trim();
+    setEditingName(false);
+    if (!n || n === item.name) return;
+    if (await renameItem(item.slug, n)) toast(fmt('item.renamed', { name: n }));
   };
 
   if (!item) return null;
@@ -371,9 +387,38 @@ export function ItemSheet({
               <Icon name={cat.icon} />
             </span>
             <span className="col" style={{ minWidth: 0 }}>
-              <b className="t-h3" style={{ fontWeight: 750 }}>
-                {item.name}
-              </b>
+              {editingName ? (
+                <input
+                  className="field"
+                  value={nameDraft}
+                  autoFocus
+                  onChange={(e) => setNameDraft(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') void saveRename();
+                    if (e.key === 'Escape') setEditingName(false);
+                  }}
+                  onBlur={() => void saveRename()}
+                  style={{ minHeight: 34, minWidth: 0 }}
+                />
+              ) : (
+                <span className="rowline gap6">
+                  <b className="t-h3" style={{ fontWeight: 750 }}>
+                    {item.name}
+                  </b>
+                  <button
+                    type="button"
+                    className="ibtn"
+                    style={V({ color: 'var(--faint)', padding: 3 })}
+                    onClick={startRename}
+                    aria-label={t('item.rename')}
+                  >
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <path d="M12 20h9" />
+                      <path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z" />
+                    </svg>
+                  </button>
+                </span>
+              )}
               {item.alias ? (
                 <span className="t-xs t-muted ellip" style={{ maxWidth: '100%' }}>
                   {item.alias}

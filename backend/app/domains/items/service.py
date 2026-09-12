@@ -223,6 +223,19 @@ def merge_defs(conn: sqlite3.Connection, user_id: int, *, keep_id: int, from_id:
     }
 
 
+def rename_def(conn: sqlite3.Connection, user_id: int, *, def_id: int, name: str) -> dict:
+    """Rename the item type (kind) — the displayed name of every lot of it."""
+    name = name.strip()
+    if not name:
+        raise BadRequest("name must not be empty")
+    require_def(conn, user_id, def_id)
+    conn.execute(
+        "UPDATE item_defs SET name = ?, name_norm = ?, updated_at = datetime('now') WHERE id = ? AND owner_id = ?",
+        (name, norm_text(name), def_id, user_id),
+    )
+    return {"def_id": def_id, "name": name}
+
+
 def set_category(conn: sqlite3.Connection, user_id: int, *, def_id: int, category_id: Optional[int]) -> dict:
     if category_id is None:
         raise BadRequest("category_id required")
