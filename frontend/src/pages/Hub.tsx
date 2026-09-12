@@ -95,6 +95,7 @@ export default function Hub() {
   const tree = useCatalog((s) => s.tree);
   const items = useCatalog((s) => s.items);
   const recent = useCatalog((s) => s.recent);
+  const dropRecent = useCatalog((s) => s.dropRecent);
   const setReveal = useCatalog((s) => s.setReveal);
   const toast = useToast((s) => s.push);
   const openSpot = useOverlay((s) => s.openSpot);
@@ -210,11 +211,16 @@ export default function Hub() {
                 </div>
                 <div className="card-stack">
                   {recent.map((r) => (
-                    <button
+                    <div
                       key={r.id}
-                      type="button"
                       className="glass-card item-row hover-lift"
+                      role="button"
+                      tabIndex={0}
                       onClick={() => openRecent(r)}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') openRecent(r);
+                      }}
+                      style={V({ cursor: 'pointer', alignItems: 'center' })}
                     >
                       <span className="glyph" style={V({ ['--tc']: 'var(--accent)' })}>
                         <Icon name={r.icon as IconName} />
@@ -232,7 +238,20 @@ export default function Hub() {
                         <span className="t-xs t-faint">{r.time}</span>
                         <Icon name="chev" size={16} style={V({ color: 'var(--faint)' })} />
                       </span>
-                    </button>
+                      <button
+                        type="button"
+                        className="btn btn--ghost btn--sm"
+                        style={V({ color: 'var(--danger)', padding: '0 6px' })}
+                        title={t('hub.recentDelete')}
+                        aria-label={t('hub.recentDelete')}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          dropRecent(r.id);
+                        }}
+                      >
+                        ✕
+                      </button>
+                    </div>
                   ))}
                 </div>
               </section>

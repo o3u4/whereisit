@@ -351,7 +351,7 @@ export async function buildTree(
 }
 
 /* ---- LLM agent: plan → approve → apply (four coarse tools, path-addressed) -- */
-export type PlanTool = 'create' | 'update' | 'remove';
+export type PlanTool = 'create' | 'update' | 'remove' | 'category' | 'merge_defs' | 'set_image' | 'reorder';
 export interface PlanStep {
   tool: PlanTool;
   args: Record<string, unknown>;
@@ -381,12 +381,15 @@ export async function agentPlan(
   });
 }
 
-/** run an approved plan on the server (sequential, one transaction, undoable) */
+/** run an approved plan on the server (sequential, one transaction, undoable).
+ * `attachments` (e.g. the photo you attached) is forwarded for the set_image tool. */
 export async function agentApply(
   plan: PlanStep[],
+  attachments?: { image_base64?: string }[],
 ): Promise<{ results: ApplyResult[]; undo_id: number | null }> {
   return request<{ results: ApplyResult[]; undo_id: number | null }>('POST', '/llm/agent/apply', {
     plan,
+    attachments,
   });
 }
 

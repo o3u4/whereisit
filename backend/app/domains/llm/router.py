@@ -31,6 +31,7 @@ class PlanBody(BaseModel):
 
 class ApplyBody(BaseModel):
     plan: list[dict]
+    attachments: list[dict] | None = None
 
 
 class UndoBody(BaseModel):
@@ -74,7 +75,7 @@ def agent_plan(payload: PlanBody, user_id: int = Depends(get_current_user)) -> d
 @router.post("/agent/apply", response_model=dict)
 def agent_apply(payload: ApplyBody, user_id: int = Depends(get_current_user)) -> dict:
     plan = agent.validate_plan(payload.plan)
-    results, undo_id = agent.apply_plan(user_id, plan)
+    results, undo_id = agent.apply_plan(user_id, plan, payload.attachments)
     return ok({"results": results, "undo_id": undo_id})
 
 

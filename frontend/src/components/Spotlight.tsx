@@ -27,11 +27,19 @@ const TOOL_LABEL: Record<PlanTool, string> = {
   create: 'ai.tool.create',
   update: 'ai.tool.update',
   remove: 'ai.tool.remove',
+  category: 'ai.tool.category',
+  merge_defs: 'ai.tool.mergeDefs',
+  set_image: 'ai.tool.setImage',
+  reorder: 'ai.tool.reorder',
 };
 const TOOL_COLOR: Record<PlanTool, string> = {
   create: 'var(--present)',
   update: 'var(--accent)',
   remove: 'var(--danger)',
+  category: 'var(--accent)',
+  merge_defs: 'var(--faint)',
+  set_image: 'var(--present)',
+  reorder: 'var(--muted)',
 };
 
 /** client-side preview of what one plan step will do (server results replace it) */
@@ -41,7 +49,7 @@ function planLines(step: PlanStep, tr: (k: string, v?: Record<string, string | n
   if (step.tool === 'create') {
     return [
       ...arr<string[]>(a.spaces).map((p) => tr('ai.ln.space', { p: pathStr(p) })),
-      ...arr<{ name: string; at: string[]; qty?: number }>(a.items).map(
+      ...arr<{ name: string; at: string[]; qty?: number; attrs?: unknown[] }>(a.items).map(
         (i) => tr('ai.ln.item', { n: i.name, q: i.qty ?? 1, p: pathStr(i.at) }),
       ),
     ];
@@ -61,10 +69,35 @@ function planLines(step: PlanStep, tr: (k: string, v?: Record<string, string | n
       ...arr<string[]>(a.to_items).map((p) => tr('ai.ln.toItem', { p: pathStr(p) })),
     ];
   }
-  return [
-    ...arr<string[]>(a.spaces).map((p) => tr('ai.ln.space', { p: pathStr(p) })),
-    ...arr<{ name: string }>(a.items).map((i) => tr('ai.ln.itemN', { n: i.name })),
-  ];
+  if (step.tool === 'remove') {
+    return [
+      ...arr<string[]>(a.spaces).map((p) => tr('ai.ln.space', { p: pathStr(p) })),
+      ...arr<{ name: string }>(a.items).map((i) => tr('ai.ln.itemN', { n: i.name })),
+    ];
+  }
+  if (step.tool === 'category') {
+    return [
+      ...arr<string>(a.add).map((n) => tr('ai.ln.catAdd', { n })),
+      ...arr<{ name: string; to: string }>(a.rename).map((r) => tr('ai.ln.catRename', { n: r.name, to: r.to })),
+      ...arr<{ source: string; into: string }>(a.merge).map((m) => tr('ai.ln.catMerge', { n: m.source, into: m.into })),
+      ...arr<string>(a.remove).map((n) => tr('ai.ln.catRemove', { n })),
+    ];
+  }
+  if (step.tool === 'merge_defs') {
+    const t = a.target as string;
+    return [tr('ai.ln.mergeDefs', { target: t, n: arr<string>(a.sources).length })];
+  }
+  if (step.tool === 'set_image') {
+    const refs = [
+      ...arr<{ name: string }>(a.items).map((i) => i.name),
+      ...arr<string[]>(a.spaces).map((p) => pathStr(p)),
+    ];
+    return refs.length ? refs.map((n) => tr('ai.ln.setImage', { n })) : [tr('ai.ln.setImage', { n: '—' })];
+  }
+  if (step.tool === 'reorder') {
+    return [tr('ai.ln.reorder', { p: pathStr(a.path), n: arr<string>(a.spaces).length })];
+  }
+  return [];
 }
 
 
@@ -332,7 +365,7 @@ export function Spotlight() {
     if (aPhase !== 'await') return;
     setAPhase('applying');
     try {
-      const r = await agentApply(aPlan);
+      const r = await agentApply(aPlan, aImgB ? [{ image_base64: aImgB }] : undefined);
       setAResults(r.results);
       setAUndoId(r.undo_id);
       setAPhase('done');

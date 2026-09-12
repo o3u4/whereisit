@@ -420,6 +420,15 @@ export default function Browse() {
 
   /* -------- spine -------------------------------------------------------- */
   const crumbChain = cur ? chainOf(tree, cur) : [];
+  const copyPath = async () => {
+    const p = '~/ ' + crumbChain.map((n) => n.name).join(' / ');
+    try {
+      await navigator.clipboard.writeText(p);
+      toast(fmt('browse.copied', { p }));
+    } catch {
+      /* clipboard unavailable */
+    }
+  };
   const spine = (
     <nav className="spine" aria-label={t('browse.spineAria')}>
       <button type="button" className="sseg sseg--root" onClick={() => goDir(null)}>
@@ -442,6 +451,9 @@ export default function Browse() {
           </Fragment>
         );
       })}
+      <button type="button" className="btn btn--ghost btn--sm" style={{ marginLeft: 'auto' }} title={t('browse.copyPath')} onClick={() => void copyPath()}>
+        {t('browse.copyPath')}
+      </button>
     </nav>
   );
 
