@@ -80,6 +80,56 @@ def test_agent_find_then_set_status(client, monkeypatch):
     assert "3天后" in (kit["notes"] or "")
 
 
+def test_agent_register_then_undo(client, monkeypatch):
+    import app.domains.llm.agent as ag
+
+    _setup(client)
+    script = [
+        _msg(tool_calls=[_tc("1", "register_item", {"name": "便签", "path": ["抽屉"], "qty": 2})]),
+        _msg(content="已登记便签"),
+    ]
+    monkeypatch.setattr(ag, "OpenAI", lambda *a, **k: _FakeOpenAI(script))
+    r = client.post("/api/llm/agent", json={"message": "在抽屉里记两本便签"})
+    assert r.status_code == 200, r.text
+    d = r.json()["data"]
+    assert d["undo_id"] is not None
+    assert "便签" in [i["name"] for i in client.get("/api/items").json()["data"]]
+
+    u = client.post("/api/llm/agent/undo", json={"undo_id": d["undo_id"]})
+    assert u.status_code == 200, u.text
+    assert "便签" not in [i["name"] for i in client.get("/api/items").json()["data"]]
+
+
+def test_agent_move_create_space_status_then_undo(client, monkeypatch):
+    import app.domains.llm.agent as ag
+
+    sp = _setup(client)
+    script = [
+        _msg(tool_calls=[_tc("1", "move_item", {"name": "钥匙", "to_path": ["柜子", "顶格"]})]),
+        _msg(tool_calls=[_tc("2", "set_status", {"name": "钥匙", "status": "lent", "due": "3天后"})]),
+        _msg(content="done"),
+    ]
+    monkeypatch.setattr(ag, "OpenAI", lambda *a, **k: _FakeOpenAI(script))
+    r = client.post("/api/llm/agent", json={"message": "把钥匙挪到柜子/顶格并记成借出，3天后还"})
+    assert r.status_code == 200, r.text
+    d = r.json()["data"]
+    assert d["undo_id"] is not None
+
+    kit = [i for i in client.get("/api/items").json()["data"] if i["name"] == "钥匙"][0]
+    assert kit["space_id"] != sp["id"]
+    assert kit["status"] == "lent"
+
+    u = client.post("/api/llm/agent/undo", json={"undo_id": d["undo_id"]})
+    assert u.status_code == 200, u.text
+    kit = [i for i in client.get("/api/items").json()["data"] if i["name"] == "钥匙"][0]
+    assert kit["space_id"] == sp["id"]
+    assert kit["status"] == "present"
+    assert not (kit["notes"] or "")
+    # the freshly created path is gone again
+    names = {n["name"] for n in client.get("/api/spaces/tree").json()["data"]}
+    assert "柜子" not in names
+
+
 def test_agent_delete_then_undo(client, monkeypatch):
     import app.domains.llm.agent as ag
 

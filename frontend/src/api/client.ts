@@ -295,6 +295,13 @@ export async function deleteSpace(spaceId: number): Promise<{ removed_ids: numbe
   return data;
 }
 
+/** turn a leaf space into an item of the same name at its parent (lots move up) */
+export async function spaceToItem(
+  spaceId: number,
+): Promise<{ merged: boolean; lots_moved: number; removed_id: number }> {
+  return request('POST', `/spaces/${spaceId}/to-item`);
+}
+
 /** patch a space's declarative layout_json (e.g. { group: "家/公司", ... }) */
 export async function updateSpaceLayout(
   spaceId: number,

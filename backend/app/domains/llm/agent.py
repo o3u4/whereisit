@@ -8,6 +8,7 @@ import openai
 from openai import OpenAI
 
 from app.core.config import MEDIA_DIR
+from app.core.normalize import norm_text
 from app.db.engine import tx
 from app.domains.items import service as items_service
 from app.domains.media import service as media_service
@@ -15,10 +16,13 @@ from app.domains.spaces import service as spaces_service
 
 SYSTEM = """You are whereisit's catalog assistant. The user asks you to organize their item
 catalog. You call tools to read and modify it — work only with what actually
-exists (use find_item / list_tree first when unsure). Reply in the user's
-language, and end with a one-line summary of what you changed.
+exists. Reply in the user's language, and end with a one-line summary of what
+you changed.
 
 Rules:
+- Be economical: call list_tree at most ONCE to learn the structure, then act.
+  Never repeat find_item / list_tree for something you already learned — each
+  round costs a step and the run is capped.
 - To locate a thing, call find_item and operate on the match(es).
 - When the user mentions lending/borrowing with a return (e.g. 3天后还), set the
   status to 'lent' and note the due date.
@@ -41,7 +45,7 @@ def _tree_summary(conn, user_id: int, root_id=None) -> str:
             out += walk(n["children"], depth + 1)
         return out
 
-    tree = spaces_service.tree(conn, user_id, root_id)
+    tree = spaces_service.tree(conn, user_id, root_id or None)  # 0/None both mean top-level
     return "\n".join(walk(tree, 0)) or "（空）"
 
 
@@ -116,49 +120,127 @@ def _capture_space(conn, user_id: int, space_id: int, ctx: dict) -> None:
     })
 
 
+def _b64_of(user_id: int, file_path: str) -> str:
+    p = MEDIA_DIR / str(user_id) / file_path
+    return base64.b64encode(p.read_bytes()).decode() if p.exists() else ""
+
+
 def _image_snapshot(user_id: int, img_row) -> dict:
-    p = MEDIA_DIR / str(user_id) / img_row["file_path"]
-    data = base64.b64encode(p.read_bytes()).decode() if p.exists() else ""
     return {"entity_type": img_row["entity_type"], "entity_id": img_row["entity_id"],
-            "file_path": img_row["file_path"], "mime": img_row.get("mime"), "bytes_b64": data}
+            "file_path": img_row["file_path"], "mime": img_row.get("mime"),
+            "bytes_b64": _b64_of(user_id, img_row["file_path"])}
+
+
+def _restore_snapshot(conn, user_id: int, data: dict, counts: dict) -> None:
+    for s in data.get("spaces", []):
+        cols = list(s.keys())
+        conn.execute(
+            f"INSERT OR IGNORE INTO spaces ({','.join(cols)}) VALUES ({','.join('?'*len(cols))})",
+            [s[c] for c in cols],
+        )
+        counts["spaces"] += 1
+    for lot in data.get("lots", []):
+        cols = list(lot.keys())
+        conn.execute(
+            f"INSERT OR IGNORE INTO item_lots ({','.join(cols)}) VALUES ({','.join('?'*len(cols))})",
+            [lot[c] for c in cols],
+        )
+        counts["lots"] += 1
+    for a in data.get("attrs", []):
+        cols = list(a.keys())
+        conn.execute(
+            f"INSERT OR IGNORE INTO attrs ({','.join(cols)}) VALUES ({','.join('?'*len(cols))})",
+            [a[c] for c in cols],
+        )
+        counts["attrs"] += 1
+    for im in data.get("images", []):
+        if im.get("bytes_b64"):
+            p = MEDIA_DIR / str(user_id) / im["file_path"]
+            p.parent.mkdir(parents=True, exist_ok=True)
+            p.write_bytes(base64.b64decode(im["bytes_b64"]))
+        conn.execute(
+            "INSERT OR IGNORE INTO images (owner_id, entity_type, entity_id, file_path, mime) VALUES (?,?,?,?,?)",
+            (user_id, im["entity_type"], im["entity_id"], im["file_path"], im.get("mime")),
+        )
+        counts["images"] += 1
+
+
+def _apply_op(conn, user_id: int, op: dict, counts: dict) -> None:
+    kind = op["op"]
+    if kind == "patch_lot":
+        old = op["old"]
+        conn.execute(
+            "UPDATE item_lots SET qty = ?, status = ?, space_id = ?, notes = ?, updated_at = datetime('now') "
+            "WHERE id = ? AND owner_id = ?",
+            (old["qty"], old["status"], old["space_id"], old["notes"], op["lot_id"], user_id),
+        )
+        counts["lots"] += 1
+    elif kind == "rename_def":
+        conn.execute(
+            "UPDATE item_defs SET name = ?, name_norm = ?, updated_at = datetime('now') WHERE id = ? AND owner_id = ?",
+            (op["old"], norm_text(op["old"]), op["def_id"], user_id),
+        )
+    elif kind == "remove_lot":
+        items_service.remove(conn, user_id, lot_id=op["lot_id"])
+        counts["lots"] += 1
+    elif kind == "remove_space":
+        spaces_service.delete(conn, user_id, op["space_id"])
+        counts["spaces"] += 1
+    elif kind == "set_image":
+        if op.get("bytes_b64"):
+            p = MEDIA_DIR / str(user_id) / op["file_path"]
+            p.parent.mkdir(parents=True, exist_ok=True)
+            p.write_bytes(base64.b64decode(op["bytes_b64"]))
+        conn.execute(
+            "INSERT OR REPLACE INTO images (owner_id, entity_type, entity_id, file_path, mime) VALUES (?,?,?,?,?)",
+            (user_id, op["entity_type"], op["entity_id"], op["file_path"], op.get("mime")),
+        )
+        counts["images"] += 1
+    elif kind == "clear_image":
+        media_service.delete(conn, user_id, op["entity_type"], op["entity_id"])
+        counts["images"] += 1
 
 
 def restore_undo(conn, user_id: int, bundles: list[dict]) -> dict:
-    """Restore every captured delete bundle; returns aggregate counts."""
+    """Undo one agent run: snapshot bundles re-insert deleted rows, op bundles
+    reverse in-place mutations (status/notes/move/rename/register/create/image).
+    Replayed LIFO — undo the newest mutation first and tear down created spaces
+    last, so a cascade can never eat a row an earlier op still needs."""
     counts = {"spaces": 0, "lots": 0, "attrs": 0, "images": 0}
-    for data in bundles:
-        for s in data.get("spaces", []):
-            cols = list(s.keys())
-            conn.execute(
-                f"INSERT OR IGNORE INTO spaces ({','.join(cols)}) VALUES ({','.join('?'*len(cols))})",
-                [s[c] for c in cols],
-            )
-            counts["spaces"] += 1
-        for lot in data.get("lots", []):
-            cols = list(lot.keys())
-            conn.execute(
-                f"INSERT OR IGNORE INTO item_lots ({','.join(cols)}) VALUES ({','.join('?'*len(cols))})",
-                [lot[c] for c in cols],
-            )
-            counts["lots"] += 1
-        for a in data.get("attrs", []):
-            cols = list(a.keys())
-            conn.execute(
-                f"INSERT OR IGNORE INTO attrs ({','.join(cols)}) VALUES ({','.join('?'*len(cols))})",
-                [a[c] for c in cols],
-            )
-            counts["attrs"] += 1
-        for im in data.get("images", []):
-            if im.get("bytes_b64"):
-                p = MEDIA_DIR / str(user_id) / im["file_path"]
-                p.parent.mkdir(parents=True, exist_ok=True)
-                p.write_bytes(base64.b64decode(im["bytes_b64"]))
-            conn.execute(
-                "INSERT OR IGNORE INTO images (owner_id, entity_type, entity_id, file_path, mime) VALUES (?,?,?,?,?)",
-                (user_id, im["entity_type"], im["entity_id"], im["file_path"], im.get("mime")),
-            )
-            counts["images"] += 1
+    for data in reversed(bundles):
+        if data.get("ops"):
+            for op in reversed(data["ops"]):
+                try:
+                    _apply_op(conn, user_id, op, counts)
+                except Exception:  # noqa: BLE001 — already undone / gone
+                    pass
+        else:
+            _restore_snapshot(conn, user_id, data, counts)
     return counts
+
+
+# ------------------------------------------------------- reverse-op capture ----
+def _lot_patch_op(conn, user_id: int, lot_id: int) -> dict | None:
+    r = conn.execute(
+        "SELECT qty, status, space_id, notes FROM item_lots WHERE id = ? AND owner_id = ?",
+        (lot_id, user_id),
+    ).fetchone()
+    if not r:
+        return None
+    return {"op": "patch_lot", "lot_id": lot_id,
+            "old": {"qty": r["qty"], "status": r["status"], "space_id": r["space_id"], "notes": r["notes"]}}
+
+
+def _image_op(conn, user_id: int, entity_type: str, entity_id: int) -> dict:
+    row = conn.execute(
+        "SELECT file_path, mime FROM images WHERE owner_id = ? AND entity_type = ? AND entity_id = ?",
+        (user_id, entity_type, entity_id),
+    ).fetchone()
+    if not row:
+        return {"op": "clear_image", "entity_type": entity_type, "entity_id": entity_id}
+    return {"op": "set_image", "entity_type": entity_type, "entity_id": entity_id,
+            "file_path": row["file_path"], "mime": row["mime"],
+            "bytes_b64": _b64_of(user_id, row["file_path"])}
 
 
 # ------------------------------------------------------------------ tools ----
@@ -189,21 +271,53 @@ def _fmt_matches(conn, user_id, name) -> str:
     return f"找到：{it['name']} ×{it['qty']}（{it['status']}）~/{it['space_id']}"
 
 
-def _path_id(conn, user_id, path) -> int:
+def _path_id(conn, user_id, path, ctx=None, create=True) -> int:
+    """Resolve a root-first path to its leaf id; mkdir -p when `create`. Every
+    space newly created here is recorded as a reverse op (remove_space) so undo
+    can take the whole chain back."""
     if isinstance(path, str):
         segs = [s.strip() for s in path.replace("\\", "/").split("/") if s.strip()]
     else:
         segs = [str(s).strip() for s in (path or []) if str(s).strip()]
     if not segs:
         raise ValueError("路径为空")
-    return spaces_service.ensure_path(conn, user_id, segs)
+    parent = None
+    leaf: int | None = None
+    for name in segs:
+        n = norm_text(name)
+        if parent is None:
+            row = conn.execute(
+                "SELECT id FROM spaces WHERE parent_id IS NULL AND name_norm = ? AND owner_id = ?",
+                (n, user_id),
+            ).fetchone()
+        else:
+            row = conn.execute(
+                "SELECT id FROM spaces WHERE parent_id = ? AND name_norm = ? AND owner_id = ?",
+                (parent, n, user_id),
+            ).fetchone()
+        if row is not None:
+            node_id = int(row["id"])
+        elif create:
+            cur = conn.execute(
+                "INSERT INTO spaces (parent_id, name, name_norm, ord, type_tag, owner_id) "
+                "VALUES (?, ?, ?, 0, 'generic', ?)",
+                (parent, name, n, user_id),
+            )
+            node_id = int(cur.lastrowid)
+            if ctx is not None:
+                ctx["undo"].append({"ops": [{"op": "remove_space", "space_id": node_id}]})
+        else:
+            raise ValueError("路径不存在：/" + "/".join(segs))
+        parent = node_id
+        leaf = node_id
+    return int(leaf)
 
 
 _tool("create_space", "创建(或找到)一串路径/目录。", {
     "type": "object",
     "properties": {"path": {"type": "array", "items": {"type": "string"}, "description": "如 ['客厅','衣柜'] 或传单段 ['抽屉']"}},
     "required": ["path"],
-}, lambda conn, u, a, c: f"已创建/确认路径（叶 id={_path_id(conn, u, a['path'])}）")
+}, lambda conn, u, a, c: f"已创建/确认路径（叶 id={_path_id(conn, u, a['path'], c)}）")
 
 _tool("register_item", "登记一个物品到某路径。", {
     "type": "object",
@@ -217,17 +331,33 @@ _tool("register_item", "登记一个物品到某路径。", {
         "status": {"type": "string", "enum": ["present", "lent", "consumed"]},
     },
     "required": ["name", "path"],
-}, lambda conn, u, a, c: _register(conn, u, a))
+}, lambda conn, u, a, c: _register(conn, u, a, c))
 
 
-def _register(conn, u, a) -> str:
-    sid = _path_id(conn, u, a["path"])
-    items_service.register(
-        conn, u, name=a["name"], space_id=sid, qty=int(a.get("qty") or 1),
+def _register(conn, u, a, ctx) -> str:
+    sid = _path_id(conn, u, a["path"], ctx)
+    qty = int(a.get("qty") or 1)
+    name = a["name"]
+    # register folds into the present lot of the same def at the same space —
+    # snapshot it first so undo can put qty/status back
+    row = conn.execute(
+        "SELECT l.id FROM item_lots l JOIN item_defs d ON d.id = l.def_id "
+        "WHERE l.owner_id = ? AND d.owner_id = ? AND d.name_norm = ? "
+        "AND l.space_id = ? AND l.status = 'present'",
+        (u, u, norm_text(name), sid),
+    ).fetchone()
+    if row is not None:
+        op = _lot_patch_op(conn, u, row["id"])
+        if op:
+            ctx["undo"].append({"ops": [op]})
+    out = items_service.register(
+        conn, u, name=name, space_id=sid, qty=qty,
         category=a.get("category"), unit=a.get("unit"), notes=a.get("notes"),
         status=a.get("status") or "present",
     )
-    return f"已登记 {a['name']} ×{int(a.get('qty') or 1)}"
+    if not out["merged"]:
+        ctx["undo"].append({"ops": [{"op": "remove_lot", "lot_id": out["lot"]["lot_id"]}]})
+    return f"已登记 {name} ×{qty}"
 
 
 def _lot_of(conn, u, a, ctx) -> str:
@@ -241,13 +371,14 @@ _tool("rename_item", "重命名物品(该物品类型的所有在库一起变)�
     "type": "object",
     "properties": {"name": {"type": "string"}, "new_name": {"type": "string"}},
     "required": ["name", "new_name"],
-}, lambda conn, u, a, c: _rename(conn, u, a))
+}, lambda conn, u, a, c: _rename(conn, u, a, c))
 
 
-def _rename(conn, u, a) -> str:
+def _rename(conn, u, a, ctx) -> str:
     it = _find_lot(conn, u, a["name"])
     if not it:
         return "没有找到「%s」" % a["name"]
+    ctx["undo"].append({"ops": [{"op": "rename_def", "def_id": it["def_id"], "old": it["name"]}]})
     items_service.rename_def(conn, u, def_id=it["def_id"], name=a["new_name"])
     return f"已改名 {it['name']} → {a['new_name']}"
 
@@ -260,13 +391,16 @@ _tool("set_status", "设置物品状态:在库/借出/用完;若借出可带归�
         "due": {"type": "string", "description": "如 3天后 / 下周一 归还,会记进备注"},
     },
     "required": ["name", "status"],
-}, lambda conn, u, a, c: _set_status(conn, u, a))
+}, lambda conn, u, a, c: _set_status(conn, u, a, c))
 
 
-def _set_status(conn, u, a) -> str:
+def _set_status(conn, u, a, ctx) -> str:
     it = _find_lot(conn, u, a["name"])
     if not it:
         return "没有找到「%s」" % a["name"]
+    op = _lot_patch_op(conn, u, it["lot_id"])
+    if op:
+        ctx["undo"].append({"ops": [op]})
     items_service.patch(conn, u, it["lot_id"], status=a["status"])
     out = f"已将 {it['name']} 状态设为 {a['status']}"
     if a.get("due"):
@@ -280,13 +414,16 @@ _tool("set_notes", "设置物品备注。", {
     "type": "object",
     "properties": {"name": {"type": "string"}, "notes": {"type": "string"}},
     "required": ["name", "notes"],
-}, lambda conn, u, a, c: _set_notes(conn, u, a))
+}, lambda conn, u, a, c: _set_notes(conn, u, a, c))
 
 
-def _set_notes(conn, u, a) -> str:
+def _set_notes(conn, u, a, ctx) -> str:
     it = _find_lot(conn, u, a["name"])
     if not it:
         return "没有找到「%s」" % a["name"]
+    op = _lot_patch_op(conn, u, it["lot_id"])
+    if op:
+        ctx["undo"].append({"ops": [op]})
     items_service.patch(conn, u, it["lot_id"], notes=a["notes"])
     return f"已更新 {it['name']} 的备注"
 
@@ -295,14 +432,17 @@ _tool("move_item", "把物品移动到某路径。", {
     "type": "object",
     "properties": {"name": {"type": "string"}, "to_path": {"type": "array", "items": {"type": "string"}}},
     "required": ["name", "to_path"],
-}, lambda conn, u, a, c: _move(conn, u, a))
+}, lambda conn, u, a, c: _move(conn, u, a, c))
 
 
-def _move(conn, u, a) -> str:
+def _move(conn, u, a, ctx) -> str:
     it = _find_lot(conn, u, a["name"])
     if not it:
         return "没有找到「%s」" % a["name"]
-    sid = _path_id(conn, u, a["to_path"])
+    sid = _path_id(conn, u, a["to_path"], ctx)
+    op = _lot_patch_op(conn, u, it["lot_id"])
+    if op:
+        ctx["undo"].append({"ops": [op]})
     items_service.patch(conn, u, it["lot_id"], space_id=sid)
     return f"已把 {it['name']} 移到新路径"
 
@@ -320,6 +460,7 @@ def _set_image(conn, u, a, ctx) -> str:
     it = _find_lot(conn, u, a["name"])
     if not it:
         return "没有找到「%s」" % a["name"]
+    ctx["undo"].append({"ops": [_image_op(conn, u, "lot", it["lot_id"])]})
     media_service.put(conn, u, "lot", it["lot_id"], "agent.png", ctx["attachments"][0], "image/jpeg")
     return f"已为 {it['name']} 设置预览图"
 
@@ -348,7 +489,7 @@ _tool("delete_space", "删除一个空间/目录及其内容(仅允许用于整�
 
 
 def _delete_space(conn, u, a, ctx) -> str:
-    sid = _path_id(conn, u, a["path"])
+    sid = _path_id(conn, u, a["path"], create=False)  # never mkdir -p on delete
     _capture_space(conn, u, sid, ctx)
     spaces_service.delete(conn, u, sid)
     return "已删除该目录(可在结果里撤销)"
@@ -413,7 +554,7 @@ def _loop_openai(base_url, api_key, model, user_id, message, attachments, ctx, s
         {"role": "system", "content": SYSTEM},
         {"role": "user", "content": _user_content(message, attachments, False)},
     ]
-    for _ in range(6):
+    for _ in range(12):
         resp = client.chat.completions.create(model=model, messages=messages, tools=tools, tool_choice="auto", max_tokens=1200, temperature=0.2)
         msg = resp.choices[0].message
         if not msg.tool_calls:
@@ -438,7 +579,7 @@ def _loop_anthropic(base_url, api_key, model, user_id, message, attachments, ctx
     client = anthropic.Anthropic(api_key=api_key or "sk-local")
     tools = [{"name": t["name"], "description": t["description"], "input_schema": t["parameters"]} for t in _TOOLS]
     messages = [{"role": "user", "content": _user_content(message, attachments, True)}]
-    for _ in range(6):
+    for _ in range(12):
         resp = client.messages.create(model=model, system=SYSTEM, messages=messages, tools=tools, max_tokens=1200, temperature=0.2)
         tool_uses = [b for b in resp.content if b.type == "tool_use"]
         if not tool_uses:

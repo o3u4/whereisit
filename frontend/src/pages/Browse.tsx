@@ -352,6 +352,17 @@ export default function Browse() {
   const dirIcon = (n: DirNode) => <Icon name={TYPE_ICON[n.type]} />;
 
   /* -------- tree rail --------------------------------------------------- */
+  const spaceToItem = async (n: DirNode) => {
+    if (!window.confirm(fmt('browse.toItemQ', { name: n.name }))) return;
+    try {
+      await api.spaceToItem(Number(n.id));
+      toast(fmt('browse.toItemDone', { name: n.name }));
+      void useCatalog.getState().load();
+    } catch (err) {
+      toast(err instanceof Error ? err.message : String(err));
+    }
+  };
+
   const treeNode = (n: DirNode): ReactNode => {
     const cnt = countItemsIn(tree, items, n.id);
     const isOpen = !!expanded[n.id];
@@ -359,7 +370,13 @@ export default function Browse() {
     const isDrag = dragId?.kind === 'folder' && dragId.id === n.id;
     return (
       <div className="tr-kid" key={n.id} role="treeitem">
-        <div className="tr-row">
+        <div
+          className="tr-row"
+          onContextMenu={(e) => {
+            e.preventDefault();
+            void spaceToItem(n);
+          }}
+        >
           {n.kids.length ? (
             <button
               type="button"

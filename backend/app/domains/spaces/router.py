@@ -133,6 +133,12 @@ def move_space(space_id: int, payload: SpaceMove, user_id: int = Depends(get_cur
         return ok(SpaceOut(**node).model_dump())
 
 
+@router.post("/{space_id}/to-item", response_model=dict)
+def space_to_item(space_id: int, user_id: int = Depends(get_current_user)) -> dict:
+    with tx() as conn:
+        return ok(service.to_item(conn, user_id, space_id))
+
+
 @router.delete("/{space_id}", response_model=dict)
 def delete_space(
     space_id: int,
