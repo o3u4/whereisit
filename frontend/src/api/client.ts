@@ -389,6 +389,10 @@ export async function patchDefCategory(
   return request('PATCH', `/items/defs/${defId}`, { category_id: categoryId });
 }
 
+export async function renameDef(defId: number, name: string): Promise<{ def_id: number; name: string }> {
+  return request('PATCH', `/items/defs/${defId}`, { name });
+}
+
 export async function setDefAttr(defId: number, key: string, value: string): Promise<void> {
   await request('PUT', `/items/defs/${defId}/attrs`, { key, value });
 }

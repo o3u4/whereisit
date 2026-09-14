@@ -69,6 +69,8 @@ def merge_defs(keep_id: int, payload: MergeDefsIn, user_id: int = Depends(get_cu
 @router.patch("/defs/{def_id}", response_model=dict)
 def patch_def(def_id: int, payload: DefPatchIn, user_id: int = Depends(get_current_user)) -> dict:
     with tx() as conn:
+        if payload.name is not None:
+            return ok(service.rename_def(conn, user_id, def_id=def_id, name=payload.name))
         return ok(service.set_category(conn, user_id, def_id=def_id, category_id=payload.category_id))
 
 

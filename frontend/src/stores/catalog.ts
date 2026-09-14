@@ -67,6 +67,8 @@ interface CatalogState {
   moveDir: (dirId: string, intoId: string) => Promise<void>;
   setStatus: (slug: string, status: ItemStatus) => Promise<void>;
   setQty: (slug: string, qty: number) => Promise<void>;
+  /** rename the item type (kind) — every lot of that name changes too */
+  renameItem: (slug: string, name: string) => Promise<boolean>;
   /** register a fresh presence; resolves to the surviving lot id (null on failure) */
   addItem: (input: AddItemInput) => Promise<string | null>;
   /** single merged PATCH for record's move/update flow; resolves survivor lot */
@@ -207,6 +209,20 @@ export const useCatalog = create<CatalogState>((set, get) => {
           if (cur) set({ undoInfo: { kind: 'patch', slug, prev: { status: cur.status } } });
         } catch (e) {
           set({ error: errText(e) });
+        }
+      }),
+
+    renameItem: (slug, name) =>
+      enqueue(async () => {
+        try {
+          const cur = get().items.find((i) => i.slug === slug);
+          if (!cur) return false;
+          await api.renameDef(cur.defId, name);
+          await refreshItems();
+          return true;
+        } catch (e) {
+          set({ error: errText(e) });
+          return false;
         }
       }),
 

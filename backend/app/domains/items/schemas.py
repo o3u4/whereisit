@@ -43,3 +43,4 @@ class MergeDefsIn(BaseModel):
 
 class DefPatchIn(BaseModel):
     category_id: Optional[int] = None
+    name: Optional[str] = Field(default=None, min_length=1, max_length=200)

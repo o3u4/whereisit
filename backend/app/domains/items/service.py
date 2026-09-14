@@ -260,6 +260,19 @@ def del_attr(conn: sqlite3.Connection, user_id: int, *, def_id: int, key: str) -
     return {"def_id": def_id, "attr_key": key, "removed": cur.rowcount > 0}
 
 
+def rename_def(conn: sqlite3.Connection, user_id: int, *, def_id: int, name: str) -> dict:
+    """Rename the item type (kind) — the displayed name of every lot of it."""
+    name = name.strip()
+    if not name:
+        raise BadRequest("name must not be empty")
+    require_def(conn, user_id, def_id)
+    conn.execute(
+        "UPDATE item_defs SET name = ?, name_norm = ?, updated_at = datetime('now') WHERE id = ? AND owner_id = ?",
+        (name, norm_text(name), def_id, user_id),
+    )
+    return {"def_id": def_id, "name": name}
+
+
 def lot_out(conn: sqlite3.Connection, user_id: int, lot_id: int) -> dict:
     row = conn.execute(_ITEM_LOT_OUT, (lot_id, user_id, user_id)).fetchone()
     if row is None:

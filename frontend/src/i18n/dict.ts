@@ -110,6 +110,8 @@ export const dict: Record<Lang, Record<string, string>> = {
 
     'item.statusToast': '已标记「{name}」{verb}',
     'item.moved': '已把「{name}」移到 ~/ {leaf}',
+    'item.rename': '重命名',
+    'item.renamed': '已改名「{name}」',
     'item.catChanged': '已改到「{name}」',
     'item.catAdded': '已新增「{name}」',
     'item.catAddFail': '新增分类失败',
@@ -484,6 +486,8 @@ export const dict: Record<Lang, Record<string, string>> = {
 
     'item.statusToast': 'Marked “{name}” as {verb}',
     'item.moved': 'Moved “{name}” to ~/ {leaf}',
+    'item.rename': 'Rename',
+    'item.renamed': 'Renamed to “{name}”',
     'item.catChanged': 'Moved to “{name}”',
     'item.catAdded': 'Added “{name}”',
     'item.catAddFail': 'Could not add category',
