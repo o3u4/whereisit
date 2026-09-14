@@ -17,9 +17,6 @@ export function Wordmark({ home = '/' }: { home?: string }) {
   return (
     <Link className="wordmark" to={home} aria-label="whereisit">
       <span className="tild">~/</span>whereisit<span className="dot" />
-      <span className="t-muted t-xs t-mono hide-mobile" style={{ marginLeft: 2 }}>
-        {intl.t('app.tagline')}
-      </span>
     </Link>
   );
 }
