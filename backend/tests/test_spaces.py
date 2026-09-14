@@ -96,3 +96,29 @@ def test_delete_cascade_vs_move_children(client):
     assert grand["id"] in {n["id"] for n in sub["children"]}
 
     client.delete(f"/api/spaces/{root2['id']}")
+
+
+def test_space_to_item(client):
+    root = _create(client, "桌面")
+    leaf = _create(client, "笔筒", parent=root["id"])
+    client.post("/api/items/register", json={"name": "铅笔", "space_id": leaf["id"], "qty": 3})
+
+    r = client.post(f"/api/spaces/{leaf['id']}/to-item")
+    assert r.status_code == 200, r.text
+    data = r.json()["data"]
+    assert data["removed_id"] == leaf["id"]
+    assert data["lots_moved"] == 1
+
+    # the space is gone; a same-named item sits at the parent with the promoted lot
+    names = {n["name"] for n in client.get("/api/spaces/tree").json()["data"]}
+    assert "笔筒" not in names
+    items = client.get("/api/items").json()["data"]
+    pen = [i for i in items if i["name"] == "铅笔"][0]
+    assert pen["qty"] == 3 and pen["space_id"] == root["id"]
+    holder = [i for i in items if i["name"] == "笔筒"][0]
+    assert holder["space_id"] == root["id"]
+
+    # refuses when sub-spaces exist
+    _create(client, "子层", parent=root["id"])
+    r = client.post(f"/api/spaces/{root['id']}/to-item")
+    assert r.status_code == 400

@@ -90,6 +90,10 @@ interface CatalogState {
   renameCategory: (id: number, name: string) => Promise<boolean>;
   removeCategory: (id: number, intoId?: number) => Promise<boolean>;
   pushRecent: (entry: RecentEntry) => void;
+  /** remove recent entries by their own id */
+  dropRecent: (id: string) => void;
+  /** drop every recent entry that points at a now-deleted lot slug */
+  dropRecentBySlug: (slug: string) => void;
   setReveal: (slug: string | null) => void;
 }
 
@@ -330,6 +334,7 @@ export const useCatalog = create<CatalogState>((set, get) => {
           await api.deleteLot(Number(slug));
           await refreshItems();
           if (cur) set({ undoInfo: { kind: 'delete', item: cur } });
+          get().dropRecentBySlug(slug); // a deleted lot must not stay in recent
           return true;
         } catch (e) {
           set({ error: errText(e) });
@@ -427,6 +432,8 @@ export const useCatalog = create<CatalogState>((set, get) => {
       }),
 
     pushRecent: (entry) => set((s) => ({ recent: [entry, ...s.recent].slice(0, 12) })),
+    dropRecent: (id) => set((s) => ({ recent: s.recent.filter((r) => r.id !== id) })),
+    dropRecentBySlug: (slug) => set((s) => ({ recent: s.recent.filter((r) => r.slug !== slug) })),
 
     setReveal: (slug) => set({ reveal: slug }),
   };

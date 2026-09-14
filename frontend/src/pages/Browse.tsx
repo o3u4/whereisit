@@ -348,6 +348,17 @@ export default function Browse() {
   const dirIcon = (n: DirNode) => <Icon name={TYPE_ICON[n.type]} />;
 
   /* -------- tree rail --------------------------------------------------- */
+  const spaceToItem = async (n: DirNode) => {
+    if (!window.confirm(fmt('browse.toItemQ', { name: n.name }))) return;
+    try {
+      await api.spaceToItem(Number(n.id));
+      toast(fmt('browse.toItemDone', { name: n.name }));
+      void useCatalog.getState().load();
+    } catch (err) {
+      toast(err instanceof Error ? err.message : String(err));
+    }
+  };
+
   const treeNode = (n: DirNode): ReactNode => {
     const cnt = countItemsIn(tree, items, n.id);
     const isOpen = !!expanded[n.id];
@@ -355,7 +366,13 @@ export default function Browse() {
     const isDrag = dragId?.kind === 'folder' && dragId.id === n.id;
     return (
       <div className="tr-kid" key={n.id} role="treeitem">
-        <div className="tr-row">
+        <div
+          className="tr-row"
+          onContextMenu={(e) => {
+            e.preventDefault();
+            void spaceToItem(n);
+          }}
+        >
           {n.kids.length ? (
             <button
               type="button"
@@ -399,6 +416,15 @@ export default function Browse() {
 
   /* -------- spine -------------------------------------------------------- */
   const crumbChain = cur ? chainOf(tree, cur) : [];
+  const copyPath = async () => {
+    const p = '~/ ' + crumbChain.map((n) => n.name).join(' / ');
+    try {
+      await navigator.clipboard.writeText(p);
+      toast(fmt('browse.copied', { p }));
+    } catch {
+      /* clipboard unavailable */
+    }
+  };
   const spine = (
     <nav className="spine" aria-label={t('browse.spineAria')}>
       <button type="button" className="sseg sseg--root" onClick={() => goDir(null)}>
@@ -421,6 +447,9 @@ export default function Browse() {
           </Fragment>
         );
       })}
+      <button type="button" className="btn btn--ghost btn--sm" style={{ marginLeft: 'auto' }} title={t('browse.copyPath')} onClick={() => void copyPath()}>
+        {t('browse.copyPath')}
+      </button>
     </nav>
   );
 

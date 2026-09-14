@@ -253,6 +253,28 @@ def ensure_path(conn: sqlite3.Connection, user_id: int, names: list, type_tag: O
     return leaf
 
 
+def to_item(conn: sqlite3.Connection, user_id: int, space_id: int, *, qty: int = 1) -> dict:
+    """Turn a leaf space into an item of the same name placed at its parent.
+    Lots inside are promoted to the parent first; refuses when sub-spaces exist
+    or the space is a root (no parent to hold the item)."""
+    from app.domains.items import service as items_service  # avoid import cycle
+
+    node = require(conn, user_id, space_id)
+    if _children_of(conn, user_id, space_id):
+        raise BadRequest("还有子空间，先移走或删除它们")
+    parent = node["parent_id"]
+    if parent is None:
+        raise BadRequest("顶层空间没有可放置物品的位置")
+    moved = conn.execute(
+        "UPDATE item_lots SET space_id = ?, updated_at = datetime('now') "
+        "WHERE space_id = ? AND owner_id = ?",
+        (parent, space_id, user_id),
+    ).rowcount
+    out = items_service.register(conn, user_id, name=node["name"], space_id=parent, qty=qty)
+    delete(conn, user_id, space_id)
+    return {"lot": out["lot"], "merged": out["merged"], "lots_moved": moved, "removed_id": space_id}
+
+
 def path(conn: sqlite3.Connection, user_id: int, space_id: int) -> list[dict]:
     """Root -> space chain of {id, name} dicts."""
     require(conn, user_id, space_id)
