@@ -23,3 +23,6 @@ secret.key
 
 # claude-code
 .claude/
+
+# local notes (not tracked)
+docs/tech-debt.md
