@@ -62,9 +62,9 @@
 
 语言 / 主题 / 大模型(供应商快捷键 + Key 加密存储永不回显)/ 局域网地址 / 访问令牌(复制、下载 `.token`、轮换)/ 数据导出导入 / 多用户管理(每人独立令牌与数据):
 
-<p align="center">
-  <img src="docs/screenshots/settings1.png" alt="设置" width="480">
-</p>
+| 设置 · 偏好与模型 | 设置 · 数据与用户 |
+|---|---|
+| ![设置](docs/screenshots/settings1.png) | ![设置](docs/screenshots/settings2.png) |
 
 ## 快速开始
 

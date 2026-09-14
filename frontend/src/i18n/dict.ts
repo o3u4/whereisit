@@ -177,7 +177,7 @@ export const dict: Record<Lang, Record<string, string>> = {
     'llm.addItemPh': '物品名',
     'llm.cfg': '大模型（AI 助理）',
     'llm.quick': '快捷厂商：',
-    'llm.cfgHint': '填一个 OpenAI 兼容接口（含本地 ollama）。',
+    'llm.cfgHint': '填一个 OpenAI 兼容接口（含本地 ollama）',
     'llm.on': '已配置',
     'llm.onModel': '已配置 {model} 模型',
     'llm.off': '未配置',
